@@ -17,7 +17,7 @@ after_install_script_body = ''
 
 # for each line/string in after_install_script_body_list
 # add indentation_string preceding the line and 
-# if indentation_string is set to "   " (four spaces) this has the impact of
+# if indentation_string is set to '    ' (four spaces) this has the impact of
 # rendering the following:
 # def after_install(options, home_dir):
 #     line1
