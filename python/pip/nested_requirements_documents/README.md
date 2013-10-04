@@ -1,0 +1,2 @@
+# Overview
+nested_requirements_files.py demonstrates the use of nest PIP requirements documents. This was my attempt to install a build dependency for numexpr - in this particular case, numpy needed to be installed first. In this case my attempt to enforce order failed, but the experiment did provide a template for using nested requirements documents.
