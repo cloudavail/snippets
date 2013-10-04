@@ -1,5 +1,5 @@
 # Overview
-The design of this is designed to demonstrate the passing of values to a function through positional and keyword arguments.
+This module is designed to demonstrate the passing of values to a function through positional and keyword arguments.
 
 # Sample Output
 ./functions_keyword_arguments.py 
