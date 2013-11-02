@@ -1,0 +1,17 @@
+<% if scope.lookupvar('variable_with_value') %>
+Variable With Value has Value: <%= scope.lookupvar('variable_with_value') %>
+<% else %>
+Variable With Value Not Found.
+<% end %>
+
+<% if scope.lookupvar('variable_without_value') %>
+Variable Without Value has Value: <%= scope.lookupvar('variable_without_value') %>
+<% else %>
+Variable Without Value Else Triggered.
+<% end %>
+
+<% if scope.lookupvar('variable_does_not_exist') %>
+Variable Without Value has Value: <%= scope.lookupvar('variable_does_not_exist') %>
+<% else %>
+Variable Without Value Not Found.
+<% end %>
