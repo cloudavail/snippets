@@ -1,0 +1,4 @@
+<%#- if a lookup variable exists exists, use, else use value 'Variable Does Not Exist' -%>
+var_not_exists is: <%= scope.lookupvar('::variable_testing::var_not_exists') || 'Variable Does Not Exist' %>
+<%#- if a lookup variable exists exists, use, else use value 'Variable Does Not Exist' -%>
+var_exists is: <%= scope.lookupvar('::variable_testing::var_exists') || 'Variable Does Not Exist' %>
