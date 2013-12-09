@@ -1,0 +1,12 @@
+los_angeles:
+    size_square_miles: 503
+    population: 3800000
+    state: california
+new_york_city:
+    size_square_miles: 302
+    population: 8300000
+    state: new_york
+san_francisco:
+    size_square_miles: 49
+    population: 850000
+    state: california
