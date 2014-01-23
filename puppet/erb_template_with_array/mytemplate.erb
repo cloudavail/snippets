@@ -1,0 +1,22 @@
+$cities_in_california_nil is an object of type: <%= @cities_in_california_nil.class %>
+$cities_in_california_zero is an object of type: <%= @cities_in_california_zero.class %>
+$cities_in_california_one is an object of type: <%= @cities_in_california_one.class %>
+$cities_in_california_two is an object of type: <%= @cities_in_california_two.class %>
+
+# the values below simply dump arrays
+$cities_in_california_nil contains values: <%= @cities_in_california_nil %>
+$cities_in_california_zero contains values: <%= @cities_in_california_zero %>
+$cities_in_california_one contains values: <%= @cities_in_california_one %>
+$cities_in_california_two contains values: <%= @cities_in_california_two %>
+
+<% if @cities_in_california_nil -%>
+cities_in_california_nil
+<% end -%>
+<% if @cities_in_california_one -%>
+cities_in_california_one
+<% end -%>
+
+# iterate over values, producing "string" like output, leaves trailing ',' however
+List of cities in California: <% @cities_in_california_two.each do |city| -%><%= city -%>, <% end -%>
+# iterate over values, producing "string" like output, removes trailing ',' and is easy to write
+List of cities in California using join: <%= @cities_in_california_two.join(', ') %>
