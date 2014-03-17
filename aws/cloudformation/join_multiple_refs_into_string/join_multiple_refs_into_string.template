@@ -1,0 +1,43 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "this CloudFormation template will join multiple refs into a string. Possible use case might be joining the SubnetID of multiple subnets into a string for use with the Subnets property of a VPC ELB.",
+
+  "Parameters" : {
+
+    "RefOne" : {
+      "Description" : "the first Ref to be joined",
+      "Type" : "String",
+      "Default" : "One"
+    },
+
+    "RefTwo" : {
+      "Description" : "the second Ref to be joined",
+      "Type" : "String",
+      "Default" : "Two"
+    },
+
+    "RefThree" : {
+      "Description" : "the third Ref to be joined",
+      "Type" : "String",
+      "Default" : "Three"
+    }
+  },
+
+  "Mappings" : {
+  },
+
+  "Resources" : {
+
+    "DummyRequiredResource" : {
+      "Type": "AWS::S3::Bucket"
+    }
+  },
+
+  "Outputs" : {
+      "URL" : {
+      "Description" : "Result of Multiple Refs Joined",
+      "Value" :  { "Fn::Join" : [ "", [ "\"", { "Ref" : "RefOne" } , "," , { "Ref" : "RefTwo" }, "," , { "Ref" : "RefThree" }, "\"" ] ] }
+    }
+  }
+}
