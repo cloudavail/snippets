@@ -1,0 +1,17 @@
+# objective - determine if a plugin has been installed
+# if plugin has been installed, 
+
+VAGRANTFILE_API_VERSION = "2"
+
+# plugin_name 
+plugin_name = 'vagrant-login'
+
+if Vagrant.has_plugin?(plugin_name)
+  has_given_plugin = true
+end
+
+if has_given_plugin == true
+  $stdout.puts "Plugin #{plugin_name} is installed."
+else
+  $stderr.puts "Plugin #{plugin_name} is not installed."
+end
