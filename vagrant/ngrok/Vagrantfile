@@ -29,7 +29,8 @@ Vagrant.configure(vagrantfile_api_version) do |config|
   	print "Ngrok enabled.\n"
     config.foodshow.enabled = true
     # using config.foodshow.subdomain will host your vagrant instance at the
-    # given subdomain
+    # given subdomain - for instance, you could host at my_subdomain.ngrok.com
+    # instead of 94f3bdd.ngrok.com
     # config.foodshow.subdomain = 'my_subdomain'
     # config.foodshow.authtoken is required if using config.foodshow.subdomain
     # add your authtoken below
