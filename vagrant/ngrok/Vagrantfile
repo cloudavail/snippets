@@ -15,9 +15,6 @@
 
 vagrantfile_api_version = "2"
 
-# plugin_name 
-plugin_name = 'vagrant-foodshow'
-
 if Vagrant.has_plugin?('vagrant-foodshow')
   ngrok_enabled = true
 else
