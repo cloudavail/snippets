@@ -1,0 +1,19 @@
+# objective: port forward port 80 on a guest VM to 
+# result:
+# curl http://127.0.0.1:8080 returns content from host's port 80
+# example below:
+# host:port_forwarding username$ curl localhost:8080
+# <html><body><h1>It works!</h1>
+# <p>This is the default web page for this server.</p>
+# <p>The web server software is running but no content has been added, yet.</p>
+# </body></html>
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.network "private_network", ip: "192.168.2.2"
+  config.vm.network :forwarded_port, guest: 80, host: 8080
+  config.vm.box = "ubuntu/precise64"
+
+end
