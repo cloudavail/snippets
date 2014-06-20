@@ -1,0 +1,46 @@
+# objective: enable connection from ngrok to local vagrant instance
+# steps to execute:
+# 1. run vagrant up
+# 2. in output, lool for line ==> default: Tunnel from http://94f3bdd.ngrok.com to 127.0.0.1:8080
+# 3. connect to http://94f3bdd.ngrok.com
+# result:
+# myhost:ngrok hostname$ curl http://94f3bdd.ngrok.com
+# <html><body><h1>It works!</h1>
+# <p>This is the default web page for this server.</p>
+# <p>The web server software is running but no content has been added, yet.</p>
+# </body></html>
+
+# notes:
+# the ngrok executable should not be running - vagrant/foodshow will run ngrok for you
+
+vagrantfile_api_version = "2"
+
+# plugin_name 
+plugin_name = 'vagrant-foodshow'
+
+if Vagrant.has_plugin?('vagrant-foodshow')
+  ngrok_enabled = true
+else
+  ngrok_enabled = false
+end
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.network "private_network", ip: "192.168.2.2"
+
+  if ngrok_enabled == true
+  	print "Ngrok enabled.\n"
+    config.foodshow.enabled = true
+    # using config.foodshow.subdomain will host your vagrant instance at the
+    # given subdomain
+    # config.foodshow.subdomain = 'my_subdomain'
+    # config.foodshow.authtoken is required if using config.foodshow.subdomain
+    # add your authtoken below
+    # config.foodshow.authtoken = 'my_authtoken'
+    config.vm.network :forwarded_port, guest: 80, host: 8080, ngrok_proto: "http+https"
+  else
+    $stderr.print "Ngrok not enabled.\n"
+  end
+
+  config.vm.box = "ubuntu/precise64"
+end
