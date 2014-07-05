@@ -1,0 +1,194 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC containing two subnets and an auto scaling group containing instances with Internet access.",
+
+  "Parameters" : {
+
+    "InstanceType" : {
+      "Description" : "Sample Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "t1.micro",
+      "AllowedValues" : [ "t1.micro" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+    "InstanceCount" : {
+      "Description" : "Number of EC2 instances to launch",
+      "Type" : "Number",
+      "Default" : "2"
+    },
+
+    "KeyName" : {
+      "Description" : "Key Name.",
+      "Type" : "String"
+    }
+  },
+
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t1.micro"    : { "Arch" : "64" },
+      "m1.small"    : { "Arch" : "64" },
+      "m1.medium"   : { "Arch" : "64" },
+      "m1.large"    : { "Arch" : "64" },
+      "m1.xlarge"   : { "Arch" : "64" },
+      "m2.xlarge"   : { "Arch" : "64" },
+      "m2.2xlarge"  : { "Arch" : "64" },
+      "m2.4xlarge"  : { "Arch" : "64" },
+      "m3.xlarge"   : { "Arch" : "64" },
+      "m3.2xlarge"  : { "Arch" : "64" },
+      "c1.medium"   : { "Arch" : "64" },
+      "c1.xlarge"   : { "Arch" : "64" }
+    },
+
+    "AWSRegionArch2AMI" : {
+      "us-east-1" : { "32" : "ami-178e927e", "64" : "ami-fb8e9292" },
+      "us-west-1" : { "32" : "ami-78ba833d", "64" : "ami-7aba833f" },
+      "us-west-2" : { "32" : "ami-1e3a502e", "64" : "ami-043a5034" }
+    }
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24"
+      }
+    },
+
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+
+    "SubnetC" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : "us-east-1c",
+        "CidrBlock" : "10.0.0.0/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "SubnetD" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : "us-east-1d",
+        "CidrBlock" : "10.0.0.128/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "SubnetCRouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "DependsOn" : [ "SubnetC", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetC" }
+      }
+    },
+
+    "SubnetDRouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "DependsOn" : [ "SubnetD", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetD" }
+      }
+    },
+
+    "SampleAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : [ "us-east-1c" , "us-east-1d" ],
+        "VPCZoneIdentifier" : [ { "Ref" : "SubnetC" }, { "Ref" : "SubnetD" } ],
+        "LaunchConfigurationName" : { "Ref" : "SampleServerLaunchConfig" },
+        "MinSize" : "1",
+        "MaxSize" : "2",
+        "DesiredCapacity" : { "Ref" : "InstanceCount" }
+      }
+    },
+
+    "SampleServerLaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "AssociatePublicIpAddress" : "true",
+        "KeyName" : { "Ref" : "KeyName" },
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" },
+                                          "Arch" ] } ] },
+        "SecurityGroups" : [ { "Ref" : "SampleServerSecurityGroup" } ],
+        "InstanceType" : { "Ref" : "InstanceType" }
+      }
+    },
+
+    "SampleServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        }, {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        },
+        {
+          "IpProtocol" : "udp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        },
+        { 
+          "IpProtocol" : "icmp",
+          "FromPort" : "-1",
+          "ToPort" : "-1",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    }
+  },
+
+  "Outputs" : {
+      "URL" : {
+      "Description" : "Subnets",
+      "Value" :  { "Fn::Join" : [ "", [ "\"[", { "Ref" : "SubnetC" } , "," , { "Ref" : "SubnetD" }, "\"]" ] ] }
+    }
+  }
+}
