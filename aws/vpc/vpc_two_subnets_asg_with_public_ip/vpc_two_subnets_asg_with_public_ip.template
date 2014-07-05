@@ -106,7 +106,6 @@
 
     "SubnetCRouteTableAssociation" : {
       "Type" : "AWS::EC2::SubnetRouteTableAssociation",
-      "DependsOn" : [ "SubnetC", "PublicInternetRouteTable" ] ,
       "Properties" : {
         "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
         "SubnetId" : { "Ref" : "SubnetC" }
@@ -115,7 +114,6 @@
 
     "SubnetDRouteTableAssociation" : {
       "Type" : "AWS::EC2::SubnetRouteTableAssociation",
-      "DependsOn" : [ "SubnetD", "PublicInternetRouteTable" ] ,
       "Properties" : {
         "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
         "SubnetId" : { "Ref" : "SubnetD" }
