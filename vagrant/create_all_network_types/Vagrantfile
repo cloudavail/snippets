@@ -1,0 +1,23 @@
+# objective: create a vagrant instance that contains one of each network
+# adapter type in a Vagrant provider
+# note: a "Vagrant provider" is a virtualization provider such as VMware,
+# VirtualBox, etc.
+# the use case is to determine how a network configuration in Vagrant maps to
+# a network adapter type in a given provider
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+  # create a "network" that utilizes port forwarding
+  config.vm.network "forwarded_port", guest: 80, host: 8080
+  # create a "private_network" - this most often attaches a new network adapter
+  # to the guest instance
+  config.vm.network "private_network", ip: "192.168.2.2"
+  # create a 'public_network" - public_networks are often referred to as
+  # "bridged" networks because they place your vagrant instance on the network
+  # your host OS is connected to
+  config.vm.network "public_network"
+
+end
