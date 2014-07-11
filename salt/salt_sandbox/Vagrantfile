@@ -1,0 +1,22 @@
+# objective: create a vagrant instance that contains and can run salt
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+
+
+  config.vm.define("master") do |config|
+    config.vm.network "private_network", ip: "192.168.2.5"
+    config.vm.provision "shell", path: "./bootstrap_master.sh"
+    config.vm.hostname = 'master'
+  end
+
+  config.vm.define("minion") do |config|
+    config.vm.network "private_network", ip: "192.168.2.6"
+    config.vm.provision "shell", path: "./bootstrap_minion.sh"
+    config.vm.hostname = 'minion'
+  end
+
+end
