@@ -1,0 +1,21 @@
+# objective: create a vagrant image provisioned by saltstack
+# reference: http://docs.vagrantup.com/v2/provisioning/salt.html
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/trusty64'
+
+  # a synced folder is neccesary to provide state files
+  config.vm.synced_folder 'salt/', '/srv/salt'
+
+  config.vm.network 'private_network', ip: '192.168.2.5'
+  config.vm.provision 'salt' do |salt|
+  	# minion_config file will be placed at /etc/salt/
+    salt.minion_config = 'salt/salt-minion.conf'
+    salt.run_highstate = true
+  end
+  config.vm.hostname = 'salt-minion'
+
+end
