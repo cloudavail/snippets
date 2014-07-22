@@ -21,5 +21,7 @@ secgroup.keyid:
 secgroup.key: 
 EOF
 
-# for testing additional modules
+# requirements for salt testing
+pip install salttesting
+# requirements for boto_* state and execution modules
 pip install boto
