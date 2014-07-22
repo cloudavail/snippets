@@ -25,3 +25,7 @@ EOF
 pip install salttesting
 # requirements for boto_* state and execution modules
 pip install boto
+
+# optional - run unit tests:
+# cd /srv/salt
+# ./tests/runtests.py

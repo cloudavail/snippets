@@ -21,7 +21,7 @@ Vagrant.configure(vagrantfile_api_version) do |config|
 
   # salttesting module required greater than 512 MB of memory
   config.vm.provider "virtualbox" do |vbox|
-    vbox.memory = 1024
+    vbox.memory = 2048
   end
 
 end
