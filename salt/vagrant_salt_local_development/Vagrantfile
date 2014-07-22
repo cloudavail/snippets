@@ -1,0 +1,27 @@
+# objective: create a vagrant instance that contains and can run salt
+
+salt_git_repo = './salt'
+
+if File.directory?(salt_git_repo) == false
+  puts 'salt git repository must exist'
+  exit 1
+end
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.hostname = 'salt-dev'
+
+  # a synced folder is neccesary to provide state files
+  config.vm.synced_folder salt_git_repo, '/srv/salt'
+
+  config.vm.box = "ubuntu/trusty64"
+  config.vm.provision "shell", path: "./bootstrap.sh"
+
+  # salttesting module required greater than 512 MB of memory
+  config.vm.provider "virtualbox" do |vbox|
+    vbox.memory = 1024
+  end
+
+end
