@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="help">
+
+  <target name="help">
+    <echo message="To get a list of available targets run: phing -l" />
+  </target>
+
+  <target name="lint_file_pass" description="lint a single passing file">
+    <phplint file="./echo_pass.php"/> 
+  </target>
+
+  <target name="lint_file_fail" description="lint a single failing file">
+    <!-- halts execution of phing task, returns exit code 1 -->
+    <phplint file="./echo_fail.php" haltonfailure="True" />
+  </target>
+
+  <target name="lint_all" description="lint all files in ./">
+    <phplint>
+      <!-- includes all files in ./ directory -->
+      <!-- will report erorr in echo_file file, but will continue running -->
+      <!-- will return exit code 0, despite failure -->
+      <fileset dir="./">
+        <include name="**/*.php"/>
+      </fileset>
+    </phplint>
+  </target>
+
+</project>
