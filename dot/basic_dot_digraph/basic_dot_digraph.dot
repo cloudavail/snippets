@@ -1,4 +1,4 @@
-digraph graphname {
+digraph basic_digraph {
   a -> b;
   b -> c;
   b -> d;
