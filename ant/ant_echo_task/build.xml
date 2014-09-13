@@ -1,0 +1,5 @@
+<project>
+  <target name="echo" description="will echo a string">
+  <echo message="Hello, world"/>
+  </target>
+</project>
