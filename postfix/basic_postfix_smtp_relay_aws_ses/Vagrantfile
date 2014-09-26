@@ -1,0 +1,9 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+  config.vm.provision "shell", path: "./bootstrap.sh"
+  config.vm.hostname = "smtpconfiguration"
+
+end
