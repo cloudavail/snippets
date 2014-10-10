@@ -1,0 +1,12 @@
+# objective: create a vertx installation that sends Java application data to NewRelic
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+  config.vm.hostname = "vertx"
+  config.vm.provision "shell", path: "./vertx_sample_java_app.sh"
+  config.vm.network :forwarded_port, guest: 8080, host: 8080
+
+end
