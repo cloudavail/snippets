@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<web-app xmlns="http://java.sun.com/xml/ns/j2ee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd"
+    version="2.4">
+
+    <display-name>Servlent Mapping Application</display-name>
+
+    <description>
+        This is a simple application designed to demonstrate request routing
+        and basic Java functionality.
+    </description>
+
+    <servlet>
+        <servlet-name>RequestInfo</servlet-name>
+        <servlet-class>org.test.webapp.RequestInfoServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>OSInfo</servlet-name>
+        <servlet-class>org.test.webapp.OSInfoServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>Root</servlet-name>
+        <servlet-class>org.test.webapp.RootServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>Root</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>OSInfo</servlet-name>
+        <url-pattern>/osinfo</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>RequestInfo</servlet-name>
+        <url-pattern>/requestinfo</url-pattern>
+    </servlet-mapping>
+
+</web-app>

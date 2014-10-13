@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<project name="webapp" default="war" basedir=".">
+    <property name="build.dir" value="build"/>
+    <property name="src.dir" value="src"/>
+    <property name="webcontent.dir" value="WebContent"/>
+    
+    <fileset dir="lib.dir" includes="WebContent/WEB-INF/lib"/>
+    
+    <path id="classpath">
+        <fileset dir="${webcontent.dir}/WEB-INF/lib" includes="**/*.jar"/>
+    </path>
+    
+    <target name="clean">
+        <echo>Performing target "clean."</echo>
+        <echo>Cleaning the directory ${build.dir}</echo>
+        <delete dir="${build.dir}"/>
+    </target>
+    
+    <target name="init" depends="clean">
+        <echo>Creating the build directory</echo>
+        <mkdir dir="${build.dir}"/>
+    </target>
+    
+    <target name="copy" depends="init">
+        <echo>Copy the WebContent files</echo>
+        <copy todir="${build.dir}/WEB-INF">
+            <fileset dir="${webcontent.dir}/WEB-INF"/>
+        </copy>
+    </target>
+    
+    <target name="compile" depends="copy">
+        <echo>Compile the source files</echo>
+        <mkdir dir="${build.dir}/WEB-INF/classes"/>
+        <javac srcdir="${src.dir}" destdir="${build.dir}/WEB-INF/classes" classpathref="classpath" includeantruntime="false">
+</javac>
+    </target>
+    
+    <target name="war" depends="compile">
+        <echo>Building the war file</echo>
+        <war destfile="webapp.war" webxml="${build.dir}/WEB-INF/web.xml">
+            <fileset dir="${build.dir}"/>
+        </war>
+    </target>
+
+</project>
