@@ -1,0 +1,13 @@
+version = 0.1
+
+// apply plugin: 'java' is required before calling the 'jar' method
+apply plugin: 'java'
+
+sourceCompatibility = 1.6
+
+jar {
+  manifest {
+    attributes 'Main-Class': 'org.world.hello.HelloWorld'
+  }
+}
+
