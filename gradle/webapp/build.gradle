@@ -1,0 +1,15 @@
+version = 0.1
+
+apply plugin: 'war'
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  // providedCompile describes dependencies that are needed for compilation
+  // but are not required at runtime - at runtime these will be provided
+  // by Tomcat
+  providedCompile 'javax.servlet:servlet-api:2.5'
+}
+
