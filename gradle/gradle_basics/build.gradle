@@ -1,0 +1,11 @@
+// objective: to provide a basic script allowing a Gradle task to be executed
+// to run:
+// run the following:
+// gradle TaskOne
+// expected output:
+// Task One was Called
+task TaskOne {
+  doLast {
+    println 'Task One was Called!'
+  }
+}
