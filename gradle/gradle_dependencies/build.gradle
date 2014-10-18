@@ -1,0 +1,28 @@
+// objective: to provide a basic understanding of Gradle ordering
+// to run:
+// run the following:
+// gradle taskThree
+// expected output:
+// Task One was Called!
+// Task Two was Called!
+// Task Three was Called!
+
+task taskOne {
+  doLast {
+    println 'Task One was Called!'
+  }
+}
+
+task taskTwo {
+  taskTwo.dependsOn('taskOne')
+  doLast {
+    println 'Task Two was Called!'
+  }
+}
+
+task taskThree {
+  taskThree.dependsOn('taskTwo')
+  doLast {
+    println 'Task Three was Called!'
+  }
+}
