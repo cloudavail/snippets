@@ -1,0 +1,31 @@
+// objective: to exit and throw error if file does not exist
+
+
+// using assert
+task fileExistsTrue {
+  assert file ('./test_file_exists.txt').exists()
+}
+
+// results in gradle execution stop
+//task fileExistsFalse {
+//  assert file ('./test_file_not_exist.txt').exists()
+//}
+
+// using fileExists true/false
+task ifFileExistsTrue {
+  File testFile = new File('./test_file_exists.txt');
+  if ( testFile.isFile() ) {
+    println 'Test File Exists'
+  } else {
+    println 'Test File Does Not Exist'  	
+  }
+}
+
+task ifFileExistsFalse {
+  File testFile = new File('./test_file_not_exist.txt');
+  if ( testFile.isFile() ) {
+    println 'Test File Exists'
+  } else {
+    println 'Test File Does Not Exist'  	
+  }
+}

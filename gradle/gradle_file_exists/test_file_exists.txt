@@ -1,0 +1,6 @@
+// objective: to exit and throw error if file does not exist
+version = 0.1.0
+
+task fileExists {
+ assert file 
+}
