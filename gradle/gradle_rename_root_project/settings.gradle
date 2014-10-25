@@ -1,0 +1,3 @@
+// objective: to rename the gradle "rootProject"
+
+rootProject.name = 'new_project_name'

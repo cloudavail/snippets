@@ -1,0 +1,11 @@
+// objective: to rename the root gradle project
+// an example use:
+// when mounting a project in vagrant if both the build.gradle and Vagrantfile
+// are at "root" of project, gradle will, by convention, name the project
+// vagrant
+
+task rootProjectName {
+  doLast {
+    System.out.println("Project is Named: " + project)
+  }
+}
