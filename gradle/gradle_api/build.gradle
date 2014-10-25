@@ -1,0 +1,10 @@
+// objective: to explore the objects created by Gradle
+// and to allow a springboard for exploring the Gradle API
+task exploreAPI {
+  doLast {
+    System.out.println("Project is Named: " + project)
+    System.out.println("Project is of Class: " + project.getClass())
+    print taskOne
+    System.out.println("taskOne is of Class: " + exploreAPI.getClass())
+  }
+}
