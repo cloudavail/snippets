@@ -1,0 +1,15 @@
+// to run: gradle tar --debug
+// objective: to create a compressed tar file as follows:
+// includes the lib, src directories and all files within these directories
+// excludes the exlude_dir and all child files
+
+version = 0.1
+
+task tar (type: Tar) {
+  archiveName = "$buildDir/${project.name}-${project.version}.tar.gz"
+  compression = Compression.GZIP
+  from ( "$projectDir" )
+  include ( "**/**" )
+  exclude ( "build/**" )
+  exclude ( "exclude_dir/**" )
+}
