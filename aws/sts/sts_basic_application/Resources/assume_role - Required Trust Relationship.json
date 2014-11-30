@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::187376578462:user/colin"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
