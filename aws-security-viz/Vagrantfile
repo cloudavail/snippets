@@ -1,0 +1,11 @@
+# objective: create a vagrant instance that runs the aws-security-viz Tool. 
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+  config.vm.hostname = "awssecurityviz"
+  config.vm.provision "shell", path: "./aws_security_viz.sh"
+
+end
