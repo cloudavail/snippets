@@ -1,0 +1,10 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.hostname = "ntopng"
+  config.vm.network "private_network", ip: "192.168.2.2"
+  config.vm.box = "ubuntu/trusty64"
+  config.vm.provision "shell", path: "./bootstrap.sh"
+
+end
