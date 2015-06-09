@@ -7,6 +7,7 @@ sudo dpkg -i apt-ntop-stable.deb
 apt-get clean all
 apt-get -y update
 
+apt-get -y install libzmq3 libhiredis0.10
 apt-get -y install ntopng
 
-ntopng --daemon
+ntopng --daemon --community
