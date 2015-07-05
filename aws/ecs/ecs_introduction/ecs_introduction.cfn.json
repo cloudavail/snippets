@@ -1,0 +1,357 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "AWS CloudFormation for an ECS Cluster and Associated Resources.",
+
+  "Parameters" : {
+    "containerInstanceInstanceType" : {
+      "Description" : "container Instance Instance Type",
+      "Type" : "String",
+      "Default" : "t2.micro"
+    },
+    "keyName" : {
+      "Description" : "container Instance Instance Type",
+      "Type" : "String",
+      "Default" : "cjohnson"
+    }
+
+  },
+
+  "Mappings": {
+    "AWSInstanceType2Arch" : {
+      "t2.micro" : { "Arch" : "64" },
+      "t2.small" : { "Arch" : "64" }
+    },
+    "AWSRegionArch2AMI" : {
+      "us-west-2" : { "64" : "ami-27212417" }
+    },
+    "AWSRegion2AZ" : {
+      "us-east-1" : { "A" : "us-east-1b", "B" : "us-east-1c", "C" : "us-east-1d", "D" : "us-east-1d" },
+      "us-west-1" : { "A" : "us-west-1a", "B" : "us-west-1b", "C" : "us-west-1c"  },
+      "us-west-2" : { "A" : "us-west-2a", "B" : "us-west-2b", "C" : "us-west-2c"  }
+    }
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/23"
+      }
+    },
+
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+
+    "PublicSubnetA" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "AWSRegion2AZ", { "Ref" : "AWS::Region" }, "A" ] },
+        "CidrBlock" : "10.0.0.0/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "PublicSubnetB" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "AWSRegion2AZ", { "Ref" : "AWS::Region" }, "B" ] },
+        "CidrBlock" : "10.0.0.128/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "PublicSubnetARouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnetA" }
+      }
+    },
+
+    "PublicSubnetBRouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnetB" }
+      }
+    },
+
+    "nginxELB" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "Subnets" : [ { "Ref" : "PublicSubnetA" }, { "Ref" : "PublicSubnetB" } ],
+        "SecurityGroups" : [ { "Ref" : "nginxELBSecurityGroup" } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/index.html",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        },
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP"
+        } ],
+        "CrossZone" : "true",
+        "ConnectionDrainingPolicy": {
+          "Enabled" : "true",
+          "Timeout" : "60"
+        }
+      }
+    },
+
+    "nginxELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "nginx ELB Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+
+    "ecsServiceIAMPolicy" : {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName" : "ecsServiceIAMPolicy",
+        "Roles" : [ { "Ref" : "ecsServiceIAMRole" } ],
+        "PolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "elasticloadbalancing:Describe*",
+                "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                "ec2:Describe*",
+                "ec2:AuthorizeSecurityGroupIngress"
+              ],
+              "Resource": [
+                "*"
+              ]
+            }
+          ]
+        }
+      }
+    },
+
+    "ecsServiceIAMRole" : {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2008-10-17",
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      }
+    },
+
+    "ecsCluster" : {
+      "Type": "AWS::ECS::Cluster"
+    },
+
+    "containerInstanceECSRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+               "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": "/"
+      }
+    },
+
+    "containerInstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "container Instance Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        },{
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "SourceSecurityGroupId" : { "Ref" : "nginxELBSecurityGroup" }
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+
+    "containerInstancePolicy": {
+      "Type" : "AWS::IAM::Policy",
+      "Properties" : {
+        "Roles": [ { "Ref": "containerInstanceECSRole" } ],
+        "PolicyName" : "containerInstancePolicy",
+        "PolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ecs:CreateCluster",
+                "ecs:DeregisterContainerInstance",
+                "ecs:DiscoverPollEndpoint",
+                "ecs:Poll",
+                "ecs:RegisterContainerInstance",
+                "ecs:Submit*"
+              ],
+              "Resource": [
+                "*"
+              ]
+            }
+          ]
+        }
+      }
+    },
+
+    "containerInstanceInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ { "Ref": "containerInstanceECSRole" } ]
+      }
+    },
+
+    "containerInstanceAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "VPCZoneIdentifier" : [ { "Ref" : "PublicSubnetA" }, { "Ref" : "PublicSubnetB" } ],
+        "LaunchConfigurationName" : { "Ref" : "containerInstanceLaunchConfig" },
+        "MinSize" : "2",
+        "MaxSize" : "2",
+        "DesiredCapacity" : "2",
+        "Tags" : [ {
+          "Key" : "Name",
+          "Value" : "containerInstance",
+          "PropagateAtLaunch" : "true"
+        } ]
+      }
+    },
+
+    "containerInstanceLaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "AssociatePublicIpAddress" : "true",
+        "IamInstanceProfile" : { "Ref" : "containerInstanceInstanceProfile" },
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "containerInstanceInstanceType" },
+                                          "Arch" ] } ] },
+        "InstanceType" : { "Ref" : "containerInstanceInstanceType" },
+        "KeyName" : { "Ref" : "keyName" },
+        "SecurityGroups" : [ { "Ref" : "containerInstanceSecurityGroup" } ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [ "",
+              [
+                "#!/bin/bash\n",
+                "echo ECS_CLUSTER=",
+                { "Ref" : "ecsCluster" },
+                " >> /etc/ecs/ecs.config\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+
+    "taskDefinition" : {
+      "Type" : "AWS::ECS::TaskDefinition",
+      "Properties" : {
+        "ContainerDefinitions" : [
+          {
+            "Name": "nginx",
+            "Image": "nginx",
+            "Cpu": 1024,
+            "Memory": 512,
+            "PortMappings": [ {
+              "ContainerPort": 80,
+              "HostPort": 80
+            } ],
+            "Essential": true
+          }
+        ]
+      }
+    },
+
+    "serviceDefinition" : {
+      "Type" : "AWS::ECS::Service",
+      "Properties" : {
+        "Cluster" : { "Ref" : "ecsCluster" },
+        "DesiredCount" : 2,
+        "LoadBalancers" : [
+        {
+          "ContainerName" : "nginx" ,
+          "ContainerPort" : 80 ,
+          "LoadBalancerName" : { "Ref" : "nginxELB" }
+          }
+        ],
+        "Role" : { "Ref" : "ecsServiceIAMRole" },
+        "TaskDefinition" : { "Ref" : "taskDefinition" }
+      }
+    }
+  },
+
+  "Outputs" : {
+    "nginxELBDNSName" : {
+      "Description": "The DNSName of the nginx ELB",  
+      "Value" : { "Fn::GetAtt" : [ "nginxELB", "DNSName" ]}
+    }
+  }
+}
