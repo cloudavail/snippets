@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>796CEBA9-FD49-41A5-8AF5-05CBEF43776F</string>
+	<key>IDESourceControlProjectName</key>
+	<string>for_loops</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>EC2F185A081376142D629B7699B443E712D9AE33</key>
+		<string>github.com:colinbjohnson/snippets.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>swift/for_loops/for_loops.playground</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>EC2F185A081376142D629B7699B443E712D9AE33</key>
+		<string>../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>github.com:colinbjohnson/snippets.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>EC2F185A081376142D629B7699B443E712D9AE33</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>EC2F185A081376142D629B7699B443E712D9AE33</string>
+			<key>IDESourceControlWCCName</key>
+			<string>snippets</string>
+		</dict>
+	</array>
+</dict>
+</plist>
