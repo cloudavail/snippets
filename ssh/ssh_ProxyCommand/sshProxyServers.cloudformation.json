@@ -1,0 +1,178 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC containing one subnet, an Bastion host and a private server.",
+
+  "Parameters" : {
+
+    "BastionInstanceType" : {
+      "Description" : "Bastion Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+    "TargetInstanceType" : {
+      "Description" : "Target Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+    "KeyName" : {
+      "Description" : "Key Name.",
+      "Type" : "String"
+    }
+  },
+
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t2.micro"    : { "Arch" : "64" }
+    },
+
+    "AWSRegionArch2AMI" : {
+      "us-east-1" : { "64" : "ami-e3106686" },
+      "us-west-1" : { "64" : "ami-cd3aff89" },
+      "us-west-2" : { "64" : "ami-9ff7e8af" }
+    }
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24"
+      }
+    },
+
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+
+    "SubnetA" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : "us-west-2a",
+        "CidrBlock" : "10.0.0.0/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "SubnetARouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetA" }
+      }
+    },
+
+    "BastionInstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH from World",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        }],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        }]
+      }
+    },
+
+    "TargetInstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH from Bastion",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "SourceSecurityGroupId" : { "Ref" : "BastionInstanceSecurityGroup" }
+        }],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        }]
+      }
+    },
+
+    "BastionInstance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "InstanceType": { "Ref" : "BastionInstanceType" },
+        "ImageId": { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" }, { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "BastionInstanceType" }, "Arch" ] } ] },
+        "KeyName": { "Ref" : "KeyName" },
+        "NetworkInterfaces" : [ {"AssociatePublicIpAddress": "True",
+                                 "DeviceIndex" : "0",
+                                 "SubnetId": { "Ref" : "SubnetA" },
+                                 "GroupSet": [ { "Ref" : "BastionInstanceSecurityGroup" } ] } ]
+      }
+    },
+
+    "TargetInstance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "InstanceType": { "Ref" : "TargetInstanceType" },
+        "ImageId": { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" }, { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "BastionInstanceType" }, "Arch" ] } ] },
+        "KeyName": { "Ref" : "KeyName" },
+        "NetworkInterfaces" : [ {"AssociatePublicIpAddress": "True",
+                                 "DeviceIndex" : "0",
+                                 "SubnetId": { "Ref" : "SubnetA" },
+                                 "GroupSet": [ { "Ref" : "TargetInstanceSecurityGroup" } ] } ]
+      }
+    }
+  },
+
+  "Outputs" : {
+      "Subnets" : {
+      "Description" : "Subnets",
+      "Value" :  { "Fn::Join" : [ "", [ "\"[", { "Ref" : "SubnetA" } ] ] }
+    },
+      "BastionInstancePublicIp" : {
+      "Description" : "Subnets",
+      "Value" :  { "Fn::GetAtt" : [ "BastionInstance", "PublicIp" ]}
+    },
+      "TargetInstancePrivateIp" : {
+      "Description" : "Subnets",
+      "Value" :  { "Fn::GetAtt" : [ "TargetInstance", "PrivateIp" ]}
+    }
+  }
+}
