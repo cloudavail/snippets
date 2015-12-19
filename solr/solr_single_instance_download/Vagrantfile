@@ -1,0 +1,18 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/trusty64'
+
+  config.vm.provider "virtualbox" do |v|
+    # based on Out of Memory Error when running in/solr start -f
+    # Native memory allocation (malloc) failed to allocate 402653184 bytes for committing reserved memory.
+    v.memory = 1024
+  end
+
+  config.vm.hostname = 'solr'
+  config.vm.network :forwarded_port, guest: 8983, host: 8983
+
+  config.vm.provision(:shell, path: './solr_single_instance.sh')
+
+end
