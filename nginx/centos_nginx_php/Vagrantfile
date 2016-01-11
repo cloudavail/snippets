@@ -1,0 +1,12 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'bento/centos-7.1'
+
+  config.vm.hostname = 'nginx'
+  config.vm.network :forwarded_port, guest: 80, host: 8080
+
+  config.vm.provision(:shell, path: './centos_nginx_php.sh')
+
+end
