@@ -1,0 +1,37 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  # the zookeeper vagrant node must be up firstapa
+  config.vm.define "zookeeper" do |zookeeper|
+    zookeeper.vm.box = "ubuntu/trusty64"
+    zookeeper.vm.hostname = 'zookeeper'
+    zookeeper.vm.network "private_network", ip: "192.168.50.19"
+    zookeeper.vm.provision(:shell, path: './zookeeper_instance.sh')
+  end
+
+  config.vm.define "solr1" do |solr1|
+    solr1.vm.box = "ubuntu/trusty64"
+    solr1.vm.hostname = 'solr1'
+    solr1.vm.network "private_network", ip: "192.168.50.11"
+    solr1.vm.provision(:shell, path: './solr_cloud.sh')
+    solr1.vm.provider "virtualbox" do |v|
+      # based on Out of Memory Error when running in/solr start -f
+      # Native memory allocation (malloc) failed to allocate 402653184 bytes for committing reserved memory.
+      v.memory = 1024
+    end
+  end
+
+  config.vm.define "solr2" do |solr2|
+    solr2.vm.box = "ubuntu/trusty64"
+    solr2.vm.hostname = 'solr2'
+    solr2.vm.network "private_network", ip: "192.168.50.12"
+    solr2.vm.provision(:shell, path: './solr_cloud.sh')
+    solr2.vm.provider "virtualbox" do |v|
+      # based on Out of Memory Error when running in/solr start -f
+      # Native memory allocation (malloc) failed to allocate 402653184 bytes for committing reserved memory.
+      v.memory = 1024
+    end
+  end
+
+end
