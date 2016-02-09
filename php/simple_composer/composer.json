@@ -1,0 +1,12 @@
+{
+    "name": "cloudavail/snippets",
+    "authors": [
+        {
+            "name": "Colin Johnson",
+            "email": "colinbjohnson@gmail.com"
+        }
+    ],
+    "require": {
+        "aws/aws-sdk-php": "^3.14"
+    }
+}
