@@ -1,0 +1,12 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/wily64'
+
+  config.vm.hostname = 'nginx'
+  config.vm.network :forwarded_port, host: 8080, guest: 80
+
+  config.vm.provision(:shell, path: './ubuntu_nginx_php.sh')
+
+end
