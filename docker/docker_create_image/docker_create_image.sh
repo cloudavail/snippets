@@ -10,7 +10,7 @@
 apt-get -y install docker.io
 
 # pull a specific docker image
-docker.io pull ubuntu:14.04
+docker pull ubuntu:14.04
 
 # run a command within docker
 # docker.io run -t -i ubuntu:14.04 /bin/bash
@@ -26,7 +26,7 @@ RUN apt-get install -y apache2
 EXPOSE 80
 EOF
 
-docker.io build -t cloudavail/apache2 /root/build_directory/
+docker build -t cloudavail/apache2 /root/build_directory/
 
 # confirm the image has been built:
 # docker.io images
@@ -43,7 +43,7 @@ docker.io build -t cloudavail/apache2 /root/build_directory/
 # /usr/sbin/apache2ctl -D FOREGROUND: docker exits when a command is completed
 # as an example: service apache2 start runs, starts apache, but the command
 # completes, causing docker to exit
-docker.io run --detach --name cloudavail-apache2 --publish 8080:80 \
+docker run --detach --name cloudavail-apache2 --publish 8080:80 \
 cloudavail/apache2 /usr/sbin/apache2ctl -D FOREGROUND
 
 # confirm the container is running:
