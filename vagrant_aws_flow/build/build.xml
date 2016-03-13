@@ -1,0 +1,11 @@
+<project>
+  <property name="version" value="0.1.0"/>
+  <target name="tar">
+    <tar compression="gzip" destfile="./vaf-${version}.tar.gz">
+      <tarfileset dir="../">
+        <include name="deploy/**" /> 
+        <include name="html/**" />
+      </tarfileset>
+    </tar>
+  </target>
+</project>

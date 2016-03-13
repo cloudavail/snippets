@@ -1,0 +1,260 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "creates a Vagrant to AWS Flow CloudFormation file.",
+
+  "Parameters" : {
+    "Environment" : {
+      "Description" : "EC2 Key Name",
+      "Type" : "String",
+      "Default" : "test01",
+      "AllowedValues" : [ "test01", "dev01", "qa01", "prod01" ]
+    },
+    "KeyName" : {
+      "Description" : "EC2 Key Name",
+      "Type" : "String",
+      "Default" : "test",
+      "AllowedValues" : [ "test" ]
+    },
+    "vafInstanceType" : {
+      "Description" : "web Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    }
+  },
+
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t2.micro" : { "Arch" : "64" },
+      "t2.small" : { "Arch" : "64" }
+    },
+    "AWSRegionArch2AMI" : {
+      "us-east-1" : { "64" : "ami-415f6d2b" },
+      "us-west-1" : { "64" : "ami-1d25557d" },
+      "us-west-2" : { "64" : "ami-3d2cce5d" }
+    }
+  },
+
+  "Resources" : {
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24"
+      }
+    },
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicSubnet" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnetRouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet" }
+      }
+    },
+    "vafPolicy": {
+      "Type" : "AWS::IAM::Policy",
+      "Properties" : {
+        "Roles": [ { "Ref": "vafRole" } ],
+        "PolicyName" : "vafPolicy",
+        "PolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Resource": [
+                "arn:aws:s3:::vaf-release/*"
+              ],
+              "Action": [
+                "s3:Get*",
+                "s3:List*"
+              ],
+              "Effect": "Allow"
+            }, {
+              "Resource": [
+                  "arn:aws:s3:::vaf-release"
+              ],
+              "Action": [
+                  "s3:ListBucket"
+              ],
+              "Effect": "Allow"
+            }
+          ]
+        }
+      }
+    },
+    "vafRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+               "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": "/"
+      }
+    },
+    "vafInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ { "Ref": "vafRole" } ]
+      }
+    },
+    "vafLaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "AssociatePublicIpAddress" : "true",
+        "IamInstanceProfile" : { "Ref" : "vafInstanceProfile" },
+        "KeyName" : { "Ref" : "KeyName" },
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "vafInstanceType" },
+                                          "Arch" ] } ] },
+        "SecurityGroups" : [ { "Ref" : "vafSecurityGroup" } ],
+        "InstanceType" : { "Ref" : "vafInstanceType" },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [ "",
+              [
+                "#!/bin/bash -\n",
+                "version='0.1.0'\n",
+                "project='vaf'\n",
+                "apt-get -y update\n",
+                "apt-get -y install awscli\n",
+                "aws s3 cp --region us-west-2 s3://vaf-release/${project}-${version}.tar.gz /var/tmp/\n",
+                "mkdir -p /srv/${project}\n",
+                "tar xzf /var/tmp/${project}-${version}.tar.gz -C /srv/${project}\n",
+                "bash /srv/${project}/deploy/deploy.sh\n",
+                "EOF\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "vafSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "web Server Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        },{
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "SourceSecurityGroupId" : { "Ref" : "vafELBSecurityGroup" }
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "vafAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "VPCZoneIdentifier" : [ { "Ref" : "PublicSubnet" } ],
+        "LaunchConfigurationName" : { "Ref" : "vafLaunchConfig" },
+        "MinSize" : "1",
+        "MaxSize" : "1",
+        "DesiredCapacity" : "1",
+        "LoadBalancerNames" : [ { "Ref" : "vafELB" } ],
+        "Tags" : [ {
+          "Key" : "Name",
+          "Value" : "vaf",
+          "PropagateAtLaunch" : "true"
+        } ]
+      }
+    },
+    "vafELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "vaf ELB Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "CidrIp" : "0.0.0.0/0"
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "vafELB" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "Subnets" : [ { "Ref" : "PublicSubnet" } ],
+        "SecurityGroups" : [ { "Ref" : "vafELBSecurityGroup" } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/index.html",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        },
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP"
+        } ],
+        "CrossZone" : "true",
+        "ConnectionDrainingPolicy": {
+          "Enabled" : "true",
+          "Timeout" : "60"
+        }
+      }
+    }
+  },
+  "Outputs" : {
+    "vafELBDNSName" : {
+      "Description": "The DNSName of the vaf ELB",  
+      "Value" : { "Fn::GetAtt" : [ "vafELB", "DNSName" ]}
+    }
+  }
+}
