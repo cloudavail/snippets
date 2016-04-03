@@ -45,7 +45,3 @@ export PATH=$PATH:$HADOOP_COMMON_HOME/bin
 export PATH=$PATH:$HADOOP_COMMON_HOME/sbin
 EOF
 source /etc/profile.d/hadoop_env_variables.sh
-
-# sqoop export --connect jdbc:mysql://myrds.crezaaaruhfx.us-west-2.rds.amazonaws.com/pipetest \
-# --username mannem --password Password123 --table dailyStockPrices --input-fields-terminated-by '\t' \
-# --input-lines-terminated-by '\n' --export-dir s3://mannem/sqoopmatrix/part-m-00000
