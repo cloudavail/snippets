@@ -1,0 +1,12 @@
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+        server_name _;
+        root /vagrant/html;
+        error_page 404 /404.html;
+
+        location / {
+                include     uwsgi_params;
+                uwsgi_pass  unix:/tmp/uwsgi.sock;
+        }
+}
