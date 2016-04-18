@@ -1,0 +1,9 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/wily64"
+  config.vm.hostname = "codedeploy"
+  config.vm.provision "shell", path: "./codedeploy_agent_install_ubuntu_1510.sh"
+
+end
