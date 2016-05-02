@@ -1,0 +1,10 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/wily64"
+  config.vm.hostname = "rabbitmq"
+  config.vm.provision "shell", path: "./rabbitmq_basic_install.sh"
+  config.vm.network "private_network", ip: "192.168.2.4"
+
+end
