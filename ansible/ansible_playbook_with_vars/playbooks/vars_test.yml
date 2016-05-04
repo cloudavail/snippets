@@ -1,0 +1,18 @@
+# yaml files always start with three ---
+---
+- name: create app config file
+  hosts: testserver
+  sudo: True
+  vars: 
+    # the var api_endpoint will be used in the appconfig.j2 template
+    api_endpoint: api.myapp.net
+  tasks:
+    - name: write the apache config file
+      template:
+        # the "src" path is:
+        # the path on the computer /running/ ansible
+        # relative to the path of the ansible playbook that has been run
+        # or an absolute path if prefixed with a "/"
+        src: ./appconfig.j2
+        dest: /etc/app_config.ini
+        force: yes

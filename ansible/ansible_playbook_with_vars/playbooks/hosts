@@ -1,0 +1,3 @@
+# note:
+# if the host fingerprint in your ~/.ssh/hosts file does not match with the fingerprint of the server - ssh test will fail
+testserver ansible_ssh_host=127.0.0.1 ansible_ssh_port=2222 ansible_ssh_user=vagrant ansible_ssh_private_key_file=.vagrant/machines/default/virtualbox/private_key
