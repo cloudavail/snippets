@@ -1,0 +1,8 @@
+# yaml files always start with three ---
+---
+- name: install ntp
+  hosts: testserver
+  sudo: True
+  tasks:
+  - name: install ntp
+    apt: name=ntp
