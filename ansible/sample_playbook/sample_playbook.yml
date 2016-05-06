@@ -1,0 +1,22 @@
+### all YAML files playbooks start with ---
+---
+# -hosts: defines which hosts a playbook should be run on
+- hosts: which hosts a playbook should be run on
+  # remote_user: username
+  # describes the user on the remote system that will 
+  remote_user: root
+  # vars: 
+  vars:
+    api_endpoint: 
+  # tasks: defines which tasks should be run as a result of a play
+  # each play contains one or more tasks
+  # all tasks are executed in sequential order
+  tasks:
+    - name: name of a task
+      # apt: the type of task
+      # the parameters to the task
+      apt:
+        name: apache2
+        state: latest
+      # you can also supply arguments on a single line, as follows:
+      # apt: name=apache2 state=latest
