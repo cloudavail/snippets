@@ -1,0 +1,170 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "create auto scaling group containing instances with Internet access.",
+
+  "Parameters" : {    
+    "PublicSubnetsList" : {
+      "Description" : "Public Subnets from Core Infrastructure",
+      "Type" : "CommaDelimitedList"
+    },
+    "VPC" : {
+      "Description" : "VPC where webservers should be built",
+      "Type" : "String"
+    },
+    "WebServerImageId" : {
+      "Description" : "EC2 Key Name",
+      "AllowedValues" : [ "ami-7b89cc11", "ami-809df3e0", "ami-d24c5cb3" ],
+      "Default" : "ami-d24c5cb3",
+      "Type" : "String"
+    },
+    "WebServerInstanceType" : {
+      "Description" : "web Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+    "WebServerKeyName" : {
+      "Description" : "EC2 Key Name",
+      "Type" : "String"
+    }
+  },
+
+  "Mappings" : {
+  },
+
+  "Resources" : {
+    "WebServerLaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "AssociatePublicIpAddress" : "true",
+        "KeyName" : { "Ref" : "WebServerKeyName" },
+        "ImageId" : { "Ref" : "WebServerImageId" },
+        "SecurityGroups" : [ { "Ref" : "WebServerSecurityGroup" } ],
+        "InstanceType" : { "Ref" : "WebServerInstanceType" },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [ "",
+              [
+                "#!/bin/bash -\n",
+                "apt-get -y update\n",
+                "apt-get -y install apache2\n",
+                "ami_id=$(curl --silent http://169.254.169.254/latest/meta-data/ami-id)\n",
+                "instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)\n",
+                "instance_type=$(curl --silent http://169.254.169.254/latest/meta-data/instance-type)\n",
+                "local_ip=$(curl --silent http://169.254.169.254/latest/meta-data/local-ipv4)\n",
+                "public_ip=$(curl --silent http://169.254.169.254/latest/meta-data/public-ipv4)\n",
+                "cat > /var/www/html/index.html <<EOF\n",
+                "<html>\n",
+                "<head>\n",
+                "</head>\n",
+                "<body>\n",
+                "<h1>Server Information</h1>\n",
+                "<ul>\n",
+                "  <li>AMI: $ami_id</li>\n",
+                "  <li>Instance ID: $instance_id</li>\n",
+                "  <li>Instance Type: $instance_type</li>\n",
+                "  <li>Local IP: $local_ip</li>\n",
+                "  <li>Public IP: $public_ip</li>\n",
+                "</ul>\n",
+                "</body>\n",
+                "</html>\n",
+                "EOF\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "WebServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Web Server Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        },{
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "SourceSecurityGroupId" : { "Ref" : "WebServerELBSecurityGroup" }
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "WebServerAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "VPCZoneIdentifier" : { "Ref" : "PublicSubnetsList" },
+        "LaunchConfigurationName" : { "Ref" : "WebServerLaunchConfig" },
+        "MinSize" : "2",
+        "MaxSize" : "2",
+        "DesiredCapacity" : "2",
+        "LoadBalancerNames" : [ { "Ref" : "WebServerELB" } ],
+        "Tags" : [ {
+          "Key" : "Name",
+          "Value" : "web-asgcfn-cjohnson",
+          "PropagateAtLaunch" : "true"
+        } ]
+      }
+    },
+    "WebServerELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "web Server ELB Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "CidrIp" : "0.0.0.0/0"
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "WebServerELB" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "Subnets" : { "Ref" : "PublicSubnetsList" },
+        "SecurityGroups" : [ { "Ref" : "WebServerELBSecurityGroup" } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/index.html",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        },
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP"
+        } ],
+        "CrossZone" : "true",
+        "ConnectionDrainingPolicy": {
+          "Enabled" : "true",
+          "Timeout" : "60"
+        }
+      }
+    }
+  },
+  "Outputs" : {
+    "WebServerELBDNSName" : {
+      "Description": "The DNSName of the webServer ELB",  
+      "Value" : { "Fn::GetAtt" : [ "WebServerELB", "DNSName" ]}
+    }
+  }
+}

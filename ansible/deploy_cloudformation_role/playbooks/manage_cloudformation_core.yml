@@ -1,0 +1,20 @@
+# this file should include:
+# the ability to create/update/delete a webserver CloudFormation stack
+# the ability to provide vars to the manage_cloudformation role
+# the vars that are provided should be located by:
+## for each AWS resource defined in a given stack, each variable that would potentially be changed
+## should be located within the "vars" object in this YAML file
+---
+- hosts: localhost
+  connection: local
+  vars:
+    # global variables
+    stack_name: core
+    cloudformation_file_path: ./infra/core.json
+    region: us-west-2
+    # the manage_cloudformation role requires a dictionary named
+    # manage_cloudformation_parameters be passed to it
+    # it manage_cloudformation_parameters variable can be empty, however
+    manage_cloudformation_parameters: "{}"
+  roles:
+     - manage_cloudformation

@@ -1,0 +1,4 @@
+vars:
+  region: us-west-2
+  # resource specific variables
+  image_id: ami-d24c5cb3

@@ -1,0 +1,24 @@
+# this file should include:
+# the ability to create/update/delete a webserver CloudFormation stack
+# the ability to provide vars to the manage_cloudformation role
+# the vars that are provided should be located by:
+## for each AWS resource defined in a given stack, each variable that would potentially be changed
+## should be located within the "vars" object in this YAML file
+---
+- hosts: localhost
+  connection: local
+  vars:
+    # global variables
+    # variables used outside of CloudFormation stack
+    stack_name: webserver
+    cloudformation_file_path: ./infra/webserver.json
+    region: us-west-2
+    # variables used within CloudFormation stack
+    manage_cloudformation_parameters:
+      PublicSubnetsList: "subnet-e379b395,subnet-47bb0b23"
+      VPC: vpc-80cc78e4
+      WebServerImageId: ami-d24c5cb3
+      WebServerInstanceType: t2.micro
+      WebServerKeyName: ansible_test
+  roles:
+     - manage_cloudformation

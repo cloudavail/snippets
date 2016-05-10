@@ -1,0 +1,12 @@
+---
+# Basic task example
+- name: launch ansible cloudformation example
+  cloudformation:
+    stack_name: "{{ stack_name }}"
+    state: "present"
+    region: "{{ region }}"
+    disable_rollback: true
+    template: "{{ cloudformation_file_path }}"
+    template_parameters: "{{ manage_cloudformation_parameters }}"
+    tags:
+      Stack: "{{ stack_name }}"
