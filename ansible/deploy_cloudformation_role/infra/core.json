@@ -80,6 +80,14 @@
   },
 
   "Outputs" : {
+    "PublicSubnets" : {
+      "Description" : "Public Subnets",
+      "Value" :  { "Fn::Join" : [ "", [ "\"", { "Ref" : "PublicSubnetA" } , "," , { "Ref" : "PublicSubnetA" } , "\"" ] ] }
+    },
+    "VPCID" : {
+      "Description" : "Public Subnets",
+      "Value" :  { "Ref" : "VPC" }
+    }
   }
 
 }
