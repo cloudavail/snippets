@@ -1,0 +1,48 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "this CloudFormation template will join multiple refs into a string.",
+
+  "Parameters" : {
+
+    "Environment" : {
+      "Description" : "the environment where an application should be built.",
+      "Type" : "String",
+      "Default" : "Development",
+      "AllowedValues" : [ "Production", "Development" ]
+    }
+  },
+
+  "Mappings" : {
+    "RegionAndEnv2PublicSubnets": {
+      "us-west-2" : { 
+        "Production" : [ "subnet-b60b5ac0", "subnet-614a7901", "subnet-73bdd422" ] ,
+        "Development" : [ "subnet-b60b5ac5", "subnet-614a7906", "subnet-73bdd427" ]
+      }
+    },
+    "RegionAndEnv2PrivateSubnets": {
+      "us-west-2" : { 
+        "Production" : [ "subnet-a60b5ac0", "subnet-714a7901", "subnet-63bdd422" ] ,
+        "Development" : [ "subnet-a60b5ac5", "subnet-714a7906", "subnet-63bdd427" ]
+      }
+    }
+  },
+
+  "Resources" : {
+    "DummyRequiredResource" : {
+      "Type": "AWS::S3::Bucket"
+    }
+  },
+
+  "Outputs" : {
+    "PublicSubnets" : {
+      "Description" : "Public Subnets",
+      "Value" :  { "Fn::Join" : [ ",", { "Fn::FindInMap" : [ "RegionAndEnv2PublicSubnets", { "Ref" : "AWS::Region"}, { "Ref" : "Environment"} ] } ] }
+    },
+    "PrivateSubnets" : {
+      "Description" : "Private Subnets",
+      "Value" :  { "Fn::Join" : [ ",", { "Fn::FindInMap" : [ "RegionAndEnv2PrivateSubnets", { "Ref" : "AWS::Region"}, { "Ref" : "Environment"} ] } ] }
+    }
+  }
+
+}
