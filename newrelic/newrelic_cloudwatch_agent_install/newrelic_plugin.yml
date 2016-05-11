@@ -48,18 +48,18 @@ agents:
   # Some of the Cloudwatch metrics are not immediately available and may
   # require a delay before being queried.
   ec2:
-    enabled: true
+    enabled: false
   ebs:
-    enabled: true
+    enabled: false
   elb:
-    enabled: true
+    enabled: false
   rds:
-    enabled: true
+    enabled: false
   sqs:
-    enabled: true
+    enabled: false
   sns:
-    enabled: true
+    enabled: false
   ec:
-    enabled: true
+    enabled: false
   ecr:
-    enabled: true
+    enabled: false
