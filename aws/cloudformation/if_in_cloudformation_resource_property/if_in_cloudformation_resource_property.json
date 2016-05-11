@@ -1,0 +1,96 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC containing a Load Balancer.",
+
+  "Parameters" : {
+    "UseLBStickiness" : {
+      "Description" : "UseLBStickess: true if stickiness should be used.",
+      "Default" : "false",
+      "AllowedValues" : [ "true", "false" ],
+      "Type" : "String"
+    }
+  },
+
+  "Mappings" : {
+  },
+
+  "Conditions" : {
+    "UseLBStickiness" : { "Fn::Equals" : [ { "Ref" : "UseLBStickiness" }, "true" ] }
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24"
+      }
+    },
+    "PrivateSubnet" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+   "ELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "web Server ELB Security Group",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "CidrIp" : "0.0.0.0/0"
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "ELB" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "ConnectionDrainingPolicy": {
+          "Enabled" : "true",
+          "Timeout" : "60"
+        },
+        "CrossZone" : "true",
+        "HealthCheck" : {
+          "Target" : "HTTP:80/index.html",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        },
+        "LBCookieStickinessPolicy" : { "Fn::If" : [
+          "UseLBStickiness",
+          [ { "PolicyName" : "MyStickinessPolicy", "CookieExpirationPeriod" : "180" } ],
+          { "Ref" : "AWS::NoValue"} ]
+        },
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP",
+          "PolicyNames" : { "Fn::If" : [
+            "UseLBStickiness",
+            [ "MyStickinessPolicy" ],
+            { "Ref" : "AWS::NoValue"} ]
+          }
+        } ],
+        "Scheme" : "internal",
+        "SecurityGroups" : [ { "Ref" : "ELBSecurityGroup" } ],
+        "Subnets" : [ { "Ref" : "PrivateSubnet" } ]
+      }
+    }
+  },
+
+  "Outputs" : {
+  }
+
+}
