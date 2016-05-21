@@ -27,6 +27,7 @@ cat > /etc/td-agent/td-agent.conf <<EOF
 EOF
 
 systemctl restart td-agent
+systemctl restart docker
 
 docker pull nginx:latest
 # the command below will run docker
