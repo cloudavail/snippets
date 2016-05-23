@@ -16,8 +16,8 @@
 
   "Mappings" : {
     "AWSRegion2AZ" : {
-      "us-east-1" : { "A" : "us-east-1b", "B" : "us-east-1c", "C" : "us-east-1d", "D" : "us-east-1d" },
-      "us-west-1" : { "A" : "us-west-1a", "B" : "us-west-1b", "C" : "us-west-1c"  },
+      "us-east-1" : { "A" : "us-east-1b", "B" : "us-east-1c", "C" : "us-east-1c", "D" : "us-east-1d" },
+      "us-west-1" : { "A" : "us-west-1b", "B" : "us-west-1c"  },
       "us-west-2" : { "A" : "us-west-2a", "B" : "us-west-2b", "C" : "us-west-2c"  }
     }
   },
@@ -124,6 +124,9 @@
         "Engine" : "redis",
         "EngineVersion" : "2.8.24",
         "NumCacheClusters" : "2",
+        "PreferredCacheClusterAZs" : [ 
+          {"Fn::FindInMap" : [ "AWSRegion2AZ", { "Ref" : "AWS::Region" }, "A" ] },
+          {"Fn::FindInMap" : [ "AWSRegion2AZ", { "Ref" : "AWS::Region" }, "B" ] } ],
         "ReplicationGroupDescription" : "RedisReplicationGroup",
         "SecurityGroupIds" : [ { "Ref" : "RedisSecurityGroup" } ]
       }
