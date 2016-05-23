@@ -1,0 +1,83 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC and force subnets into particular AZs.",
+
+  "Parameters" : {
+  },
+
+  "Mappings" : {
+    "AWSRegion2AZ" : {
+      "us-east-1" : { "1" : "us-east-1b", "2" : "us-east-1c", "3" : "us-east-1d", "4" : "us-east-1e" },
+      "us-west-1" : { "1" : "us-west-1a", "2" : "us-west-1b" },
+      "us-west-2" : { "1" : "us-west-2a", "2" : "us-west-2b", "3" : "us-west-2c"  }
+    }
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24"
+      }
+    },
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicSubnet1" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "AWSRegion2AZ", { "Ref" : "AWS::Region" }, "1" ] },
+        "CidrBlock" : "10.0.0.0/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnet2" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "AWSRegion2AZ", { "Ref" : "AWS::Region" }, "2" ] },
+        "CidrBlock" : "10.0.0.128/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnet1RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet1" }
+      }
+    },
+    "PublicSubnet2RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet2" }
+      }
+    }
+  },
+  "Outputs" : {
+  }
+}
