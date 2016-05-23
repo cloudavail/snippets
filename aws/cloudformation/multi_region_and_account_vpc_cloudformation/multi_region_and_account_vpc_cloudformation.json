@@ -1,0 +1,96 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "this CloudFormation template will join multiple refs into a string.",
+
+  "Parameters" : {
+
+    "Account" : {
+      "Description" : "the account where an application should be built.",
+      "Type" : "String",
+      "Default" : "Development",
+      "AllowedValues" : [ "Production", "Development" ]
+    }
+  },
+
+  "Mappings" : {
+    "RegionAndAccount2AZ": {
+      "us-east-1" : { 
+        "Production" : [ "us-east-1a", "us-east-1b", "us-east-1c" ] ,
+        "Development" : [ "us-east-1b", "us-east-1c", "us-east-1d" ]
+      },
+      "us-west-2" : { 
+        "Production" : [ "us-west-2a", "us-west-2b", "us-west-2c" ] ,
+        "Development" : [ "us-west-2a", "us-west-2b", "us-west-2c" ]
+      }
+    }
+  },
+
+  "Resources" : {
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24"
+      }
+    },
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicSubnet1" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::Select" : [ "0", { "Fn::FindInMap" : [ "RegionAndAccount2AZ", { "Ref" : "AWS::Region"}, { "Ref" : "Account" } ] } ] },
+        "CidrBlock" : "10.0.0.0/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnet2" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::Select" : [ "1", { "Fn::FindInMap" : [ "RegionAndAccount2AZ", { "Ref" : "AWS::Region"}, { "Ref" : "Account" } ] } ] },
+        "CidrBlock" : "10.0.0.128/25",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnet1RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet1" }
+      }
+    },
+    "PublicSubnet2RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet2" }
+      }
+    }
+  },
+
+  "Outputs" : {
+  }
+
+}
