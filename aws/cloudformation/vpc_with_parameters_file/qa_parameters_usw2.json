@@ -1,0 +1,14 @@
+[
+  {
+    "ParameterKey" : "AZsSupportingSubnets",
+    "ParameterValue" : "us-west-2a, us-west-2b"
+  },
+  {
+    "ParameterKey" : "PublicSubnetCIDRRanges",
+    "ParameterValue" : "10.1.0.0/24, 10.1.1.0/24"
+  },
+  {
+    "ParameterKey" : "VPCCIDRRange",
+    "ParameterValue" : "10.1.0.0/16"
+  }
+]

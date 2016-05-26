@@ -1,0 +1,90 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC and force subnets into particular AZs.",
+
+  "Parameters" : {
+    "AZsSupportingSubnets" : {
+      "Description" : "Availability Zones that Support Subnets",
+      "Type" : "CommaDelimitedList"
+    },
+    "PublicSubnetCIDRRanges" : {
+      "Description" : "Public Subnet CIDR Ranges",
+      "Type" : "CommaDelimitedList"
+    },
+    "VPCCIDRRange" : {
+      "Description" : "VPC CIDR Range",
+      "Type" : "String"
+    }
+  },
+
+  "Mappings" : {
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : { "Ref" : "VPCCIDRRange"}
+      }
+    },
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicSubnet0" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::Select" : [ "0", { "Ref" : "AZsSupportingSubnets" } ] },
+        "CidrBlock" : { "Fn::Select" : [ "0", { "Ref" : "PublicSubnetCIDRRanges" } ] },
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnet1" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::Select" : [ "1", { "Ref" : "AZsSupportingSubnets" } ] },
+        "CidrBlock" : { "Fn::Select" : [ "1", { "Ref" : "PublicSubnetCIDRRanges" } ] },
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnet0RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet0" }
+      }
+    },
+    "PublicSubnet1RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet1" }
+      }
+    }
+  },
+  "Outputs" : {
+  }
+}
