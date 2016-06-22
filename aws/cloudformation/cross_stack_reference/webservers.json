@@ -1,0 +1,256 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC containing two subnets and an auto scaling group containing instances with Internet access.",
+
+  "Parameters" : {
+    "CrossStackVPCName": {
+      "Description": "Name of an active CloudFormation stack that contains the networking resource.",
+      "Type": "String",
+      "Default" : "CrossStackVPC"
+    },
+    "webServerInstanceType" : {
+      "Description" : "web Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    }
+  },
+
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t2.micro" : { "Arch" : "64" },
+      "t2.small" : { "Arch" : "64" }
+    },
+    "AWSRegionArch2AMI" : {
+      "us-east-1" : { "64" : "ami-7b89cc11" },
+      "us-west-1" : { "64" : "ami-809df3e0" },
+      "us-west-2" : { "64" : "ami-d24c5cb3" }
+    },
+    "AWSRegion2AZ" : {
+      "us-east-1" : { "A" : "us-east-1b", "B" : "us-east-1c", "C" : "us-east-1d", "D" : "us-east-1d" },
+      "us-west-1" : { "A" : "us-west-1a", "B" : "us-west-1b", "C" : "us-west-1c"  },
+      "us-west-2" : { "A" : "us-west-2a", "B" : "us-west-2b", "C" : "us-west-2c"  }
+    }
+  },
+
+  "Resources" : {
+    "webServerLaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "AssociatePublicIpAddress" : "true",
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "webServerInstanceType" },
+                                          "Arch" ] } ] },
+        "SecurityGroups" : [ { "Ref" : "webServerSecurityGroup" } ],
+        "InstanceType" : { "Ref" : "webServerInstanceType" },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [ "",
+              [
+                "#!/bin/bash -\n",
+                "apt-get -y update\n",
+                "apt-get -y install apache2\n",
+                "ami_id=$(curl --silent http://169.254.169.254/latest/meta-data/ami-id)\n",
+                "instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)\n",
+                "instance_type=$(curl --silent http://169.254.169.254/latest/meta-data/instance-type)\n",
+                "local_ip=$(curl --silent http://169.254.169.254/latest/meta-data/local-ipv4)\n",
+                "public_ip=$(curl --silent http://169.254.169.254/latest/meta-data/public-ipv4)\n",
+                "cat > /var/www/html/index.html <<EOF\n",
+                "<html>\n",
+                "<head>\n",
+                "</head>\n",
+                "<body>\n",
+                "<h1>Server Information</h1>\n",
+                "<ul>\n",
+                "  <li>AMI: $ami_id</li>\n",
+                "  <li>Instance ID: $instance_id</li>\n",
+                "  <li>Instance Type: $instance_type</li>\n",
+                "  <li>Local IP: $local_ip</li>\n",
+                "  <li>Public IP: $public_ip</li>\n",
+                "</ul>\n",
+                "</body>\n",
+                "</html>\n",
+                "EOF\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "webServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "web Server Security Group",
+        "VpcId" : { "Fn::GetAtt": [ "CrossStackVPCParameters", "VPCId" ] },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        },{
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "SourceSecurityGroupId" : { "Ref" : "webServerELBSecurityGroup" }
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "webServerAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "VPCZoneIdentifier" : [ { "Fn::GetAtt": [ "CrossStackVPCParameters", "PublicSubnet" ] } ],
+        "LaunchConfigurationName" : { "Ref" : "webServerLaunchConfig" },
+        "MinSize" : "2",
+        "MaxSize" : "2",
+        "DesiredCapacity" : "2",
+        "LoadBalancerNames" : [ { "Ref" : "webServerELB" } ],
+        "Tags" : [ {
+          "Key" : "Name",
+          "Value" : "web-asgcfn-cjohnson",
+          "PropagateAtLaunch" : "true"
+        } ]
+      }
+    },
+    "webServerELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "web Server ELB Security Group",
+        "VpcId" : { "Fn::GetAtt": [ "CrossStackVPCParameters", "VPCId" ] },
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "80",
+          "CidrIp" : "0.0.0.0/0"
+        } ],
+        "SecurityGroupEgress" : [ { 
+          "IpProtocol" : "tcp",
+          "FromPort" : "0",
+          "ToPort" : "65535",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+    "webServerELB" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "Subnets" : [ { "Fn::GetAtt": [ "CrossStackVPCParameters", "PublicSubnet" ] } ],
+        "SecurityGroups" : [ { "Ref" : "webServerELBSecurityGroup" } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/index.html",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        },
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP"
+        } ],
+        "CrossZone" : "true",
+        "ConnectionDrainingPolicy": {
+          "Enabled" : "true",
+          "Timeout" : "60"
+        }
+      }
+    },
+    "CrossStackVPCParameters": {
+      "Type": "Custom::CrossStackVPCParameters",
+      "Properties": {
+        "ServiceToken": { "Fn::GetAtt" : ["LookupStackOutputs", "Arn"] },
+        "StackName": {
+          "Ref": "CrossStackVPCName"
+        }
+      }
+    },
+    "LookupStackOutputs": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": { "Fn::GetAtt" : ["LambdaExecutionRole", "Arn"] },
+        "Code": {
+          "ZipFile":  { "Fn::Join": ["\n", [
+            "var response = require('cfn-response');",
+            "exports.handler = function(event, context) {",
+            "    console.log('REQUEST RECEIVED:\\n', JSON.stringify(event));",
+            "    if (event.RequestType == 'Delete') {",
+            "        response.send(event, context, response.SUCCESS);",
+            "        return;",
+            "    }",
+            "    var stackName = event.ResourceProperties.StackName;",
+            "    var responseData = {};",
+            "    if (stackName) {",
+            "        var aws = require('aws-sdk');",
+            "        var cfn = new aws.CloudFormation();",
+            "        cfn.describeStacks({StackName: stackName}, function(err, data) {",
+            "            if (err) {",
+            "                responseData = {Error: 'DescribeStacks call failed'};",
+            "                console.log(responseData.Error + ':\\n', err);",
+            "                response.send(event, context, response.FAILED, responseData);",
+            "            }",
+            "            else {",
+            "                data.Stacks[0].Outputs.forEach(function(output) {",
+            "                    responseData[output.OutputKey] = output.OutputValue;",
+            "                });",
+            "                response.send(event, context, response.SUCCESS, responseData);",
+            "            }",
+            "        });",
+            "    } else {",
+            "        responseData = {Error: 'Stack name not specified'};",
+            "        console.log(responseData.Error);",
+            "        response.send(event, context, response.FAILED, responseData);",
+            "    }",
+            "};"
+          ]]}
+        },        
+        "Runtime": "nodejs",
+        "Timeout": "30"
+      }
+    },
+    "LambdaExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+              "Effect": "Allow",
+              "Principal": {"Service": ["lambda.amazonaws.com"]},
+              "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "Policies": [{
+          "PolicyName": "root",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"],
+                "Resource": "arn:aws:logs:*:*:*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": ["cloudformation:DescribeStacks"],
+                "Resource": "*"
+            }]
+          }
+        }]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "webServerELBDNSName" : {
+      "Description": "The DNSName of the webServer ELB",  
+      "Value" : { "Fn::GetAtt" : [ "webServerELB", "DNSName" ]}
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a VPC containing two subnets and an auto scaling group containing instances with Internet access.",
+
+  "Parameters" : {
+  },
+
+  "Mappings" : {
+  },
+
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/23"
+      }
+    },
+    "InternetGateway" : {
+       "Type" : "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : [ "InternetGateway", "PublicInternetRouteTable" ] ,
+      "Properties" : {
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" },
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" }
+      }
+    },
+    "VPCGatewayAttachment" : {
+       "Type" : "AWS::EC2::VPCGatewayAttachment",
+       "Properties" : {
+          "InternetGatewayId" : { "Ref" : "InternetGateway" },
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicInternetRouteTable" : {
+       "Type" : "AWS::EC2::RouteTable",
+       "Properties" : {
+          "VpcId" : { "Ref" : "VPC" }
+       }
+    },
+    "PublicSubnet" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24",
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    "PublicSubnetRouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PublicInternetRouteTable" },
+        "SubnetId" : { "Ref" : "PublicSubnet" }
+      }
+    }
+  },
+
+  "Outputs" : {
+    "VPCId" : {
+      "Description" : "VPC ID",
+      "Value" :  { "Ref" : "VPC" }
+    },
+    "PublicSubnet" : {
+      "Description" : "The subnet ID for resources placed in the Public Subnet",
+      "Value" :  { "Ref" : "PublicSubnet" }
+    }
+  }
+}
