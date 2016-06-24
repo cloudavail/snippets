@@ -1,0 +1,31 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a VPC with a private Route53 Zone.",
+  "Parameters": {},
+  "Mappings": {},
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24"
+      }
+    },
+    "PrivateRoute53HostedZone": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "Name": "test.cloudavail.com",
+        "VPCs": [
+          {
+            "VPCId": {
+              "Ref": "VPC"
+            },
+            "VPCRegion": {
+              "Ref": "AWS::Region"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {}
+}
