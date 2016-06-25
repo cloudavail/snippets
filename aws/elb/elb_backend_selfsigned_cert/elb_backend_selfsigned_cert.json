@@ -97,7 +97,6 @@
       "Type": "AWS::AutoScaling::LaunchConfiguration",
       "Properties": {
         "AssociatePublicIpAddress": "true",
-        "KeyName" : "elbtest",
         "ImageId": {
           "Fn::FindInMap": [
             "AWSRegionArch2AMI",
