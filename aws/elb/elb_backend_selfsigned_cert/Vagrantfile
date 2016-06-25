@@ -1,0 +1,11 @@
+# objective: create a vagrant instance that runs apache with a self-signed cert
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/xenial64"
+  config.vm.provision "shell", path: "./apache_selfsigned_cert.sh"
+  config.vm.network "forwarded_port", guest: 443, host: 8080
+
+end
