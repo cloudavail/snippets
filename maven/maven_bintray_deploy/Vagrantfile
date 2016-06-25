@@ -1,0 +1,10 @@
+vagrantfile_api_version = "2"
+
+# requires that you install the 
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/wily64"
+  config.vm.provision "shell", path: "./install_maven.sh"
+
+end
