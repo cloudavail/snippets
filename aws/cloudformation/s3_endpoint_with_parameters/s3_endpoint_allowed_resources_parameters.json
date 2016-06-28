@@ -1,0 +1,6 @@
+[
+  {
+    "ParameterKey" : "S3EndpointAllowedResources",
+    "ParameterValue" : "arn:aws:s3:::test01.cloudavail.com, arn:aws:s3:::test02.cloudavail.com, arn:aws:s3:::test03.cloudavail.com"
+  }
+]
