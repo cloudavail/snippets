@@ -1,0 +1,9 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/wily64'
+  config.vm.provision(:shell, path: './deploy.sh')
+  config.vm.network "forwarded_port", guest: 8000, host: 8000
+
+end
