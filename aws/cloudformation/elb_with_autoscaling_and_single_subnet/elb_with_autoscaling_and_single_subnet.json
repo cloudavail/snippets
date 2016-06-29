@@ -1,0 +1,294 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a VPC containing two subnets and an auto scaling group containing instances with Internet access.",
+  "Parameters": {
+    "webServerInstanceType": {
+      "Description": "web Server EC2 instance type",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues": [
+        "t2.micro"
+      ],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+    "KeyName": {
+      "Description": "EC2 Key Name",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    }
+  },
+  "Mappings": {
+    "AWSInstanceType2Arch": {
+      "t2.micro": {
+        "Arch": "64"
+      }
+    },
+    "AWSRegionArch2AMI": {
+      "us-east-1": {
+        "64": "ami-ddf13fb0"
+      },
+      "us-west-1": {
+        "64": "ami-b20542d2"
+      },
+      "us-west-2": {
+        "64": "ami-b9ff39d9"
+      }
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24"
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "InternetGateway",
+        "PublicInternetRouteTable"
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "InternetGateway"
+        },
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        }
+      }
+    },
+    "VPCGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "InternetGatewayId": {
+          "Ref": "InternetGateway"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicInternetRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet"
+        }
+      }
+    },
+    "webServerLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "ImageId": {
+          "Fn::FindInMap": [
+            "AWSRegionArch2AMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            {
+              "Fn::FindInMap": [
+                "AWSInstanceType2Arch",
+                {
+                  "Ref": "webServerInstanceType"
+                },
+                "Arch"
+              ]
+            }
+          ]
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "webServerSecurityGroup"
+          }
+        ],
+        "InstanceType": {
+          "Ref": "webServerInstanceType"
+        },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash -\n",
+                "apt-get -y update\n",
+                "apt-get -y install apache2\n",
+                "ami_id=$(curl --silent http://169.254.169.254/latest/meta-data/ami-id)\n",
+                "instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)\n",
+                "instance_type=$(curl --silent http://169.254.169.254/latest/meta-data/instance-type)\n",
+                "local_ip=$(curl --silent http://169.254.169.254/latest/meta-data/local-ipv4)\n",
+                "public_ip=$(curl --silent http://169.254.169.254/latest/meta-data/public-ipv4)\n",
+                "cat > /var/www/html/index.html <<EOF\n",
+                "<html>\n",
+                "<head>\n",
+                "</head>\n",
+                "<body>\n",
+                "<h1>Server Information</h1>\n",
+                "<ul>\n",
+                "  <li>AMI: $ami_id</li>\n",
+                "  <li>Instance ID: $instance_id</li>\n",
+                "  <li>Instance Type: $instance_type</li>\n",
+                "  <li>Local IP: $local_ip</li>\n",
+                "  <li>Public IP: $public_ip</li>\n",
+                "</ul>\n",
+                "</body>\n",
+                "</html>\n",
+                "EOF\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "webServerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web Server Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "SourceSecurityGroupId": {
+              "Ref": "webServerELBSecurityGroup"
+            }
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "0",
+            "ToPort": "65535",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "webServerAutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "PublicSubnet"
+          }
+        ],
+        "LaunchConfigurationName": {
+          "Ref": "webServerLaunchConfig"
+        },
+        "MinSize": "1",
+        "MaxSize": "1",
+        "DesiredCapacity": "1",
+        "LoadBalancerNames": [
+          {
+            "Ref": "webServerELB"
+          }
+        ]
+      }
+    },
+    "webServerELBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web Server ELB Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "0",
+            "ToPort": "65535",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "webServerELB": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "Subnets": [
+          {
+            "Ref": "PublicSubnet"
+          }
+        ],
+        "SecurityGroups": [
+          {
+            "Ref": "webServerELBSecurityGroup"
+          }
+        ],
+        "HealthCheck": {
+          "Target": "HTTP:80/index.html",
+          "HealthyThreshold": "3",
+          "UnhealthyThreshold": "5",
+          "Interval": "30",
+          "Timeout": "5"
+        },
+        "Listeners": [
+          {
+            "LoadBalancerPort": "80",
+            "InstancePort": "80",
+            "Protocol": "HTTP"
+          }
+        ],
+        "CrossZone": "true",
+        "ConnectionDrainingPolicy": {
+          "Enabled": "true",
+          "Timeout": "60"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "webServerELBDNSName": {
+      "Description": "The DNSName of the webServer ELB",
+      "Value": {
+        "Fn::GetAtt": [
+          "webServerELB",
+          "DNSName"
+        ]
+      }
+    }
+  }
+}
