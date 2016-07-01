@@ -1,0 +1,72 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create an VPC, Subnet and Route53 Hosted Zone.",
+  "Parameters": {
+    "HostedZoneName": {
+      "Type": "String",
+      "Default": "cloudavail.com"
+    }
+  },
+  "Mappings": {},
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24"
+      }
+    },
+    "PrivateSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "Route53HostedZone": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "Name": {
+          "Ref": "HostedZoneName"
+        },
+        "VPCs": [
+          {
+            "VPCId": {
+              "Ref": "VPC"
+            },
+            "VPCRegion": {
+              "Ref": "AWS::Region"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "VPCId": {
+      "Description": "The id of the VPC.",
+      "Value": {
+        "Ref": "VPC"
+      }
+    },
+    "PrivateSubnetId": {
+      "Description": "The ID of the Private Subnet",
+      "Value": {
+        "Ref": "PrivateSubnet"
+      }
+    },
+    "HostedZoneId": {
+      "Description": "The ID of the Route53 Hosted Zone",
+      "Value": {
+        "Ref": "Route53HostedZone"
+      }
+    },
+    "HostedZoneName": {
+      "Description": "The ID of the Route53 Hosted Zone",
+      "Value": {
+        "Ref": "HostedZoneName"
+      }
+    }
+  }
+}
