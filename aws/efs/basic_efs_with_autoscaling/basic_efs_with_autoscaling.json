@@ -1,0 +1,299 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a VPC containing two subnets and an auto scaling group containing instances with Internet access.",
+  "Parameters": {
+    "EFSClientType": {
+      "Description": "Instance Type",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues": [
+        "t2.micro"
+      ],
+      "ConstraintDescription": "must be an t2.micro"
+    },
+    "KeyName": {
+      "Description": "KeyName to use for an Instance",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default": "cloudavail"
+    }
+  },
+  "Mappings": {
+    "AWSInstanceType2Arch": {
+      "t2.micro": {
+        "Arch": "64"
+      }
+    },
+    "AWSRegionArch2AMI": {
+      "us-east-1": {
+        "64": "ami-ddf13fb0"
+      },
+      "us-west-1": {
+        "64": "ami-b20542d2"
+      },
+      "us-west-2": {
+        "64": "ami-b9ff39d9"
+      }
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true"
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "InternetGateway",
+        "PublicInternetRouteTable"
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "InternetGateway"
+        },
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        }
+      }
+    },
+    "VPCGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "InternetGatewayId": {
+          "Ref": "InternetGateway"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicInternetRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/25",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.128/25",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet0RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet0"
+        }
+      }
+    },
+    "PublicSubnet1RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet1"
+        }
+      }
+    },
+    "EFSClientLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "ImageId": {
+          "Fn::FindInMap": [
+            "AWSRegionArch2AMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            {
+              "Fn::FindInMap": [
+                "AWSInstanceType2Arch",
+                {
+                  "Ref": "EFSClientType"
+                },
+                "Arch"
+              ]
+            }
+          ]
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "EFSClientSecurityGroup"
+          }
+        ],
+        "InstanceType": {
+          "Ref": "EFSClientType"
+        },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash -\n",
+                "availability_zone=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)\n",
+                "region=\"",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "\"\n",
+                "efs_id=\"",
+                {
+                  "Ref": "EFSFileSystem"
+                },
+                "\"\n",
+                "apt -y update\n",
+                "apt -y install nfs-common\n",
+                "mkdir /efs\n",
+                "mount -t nfs4 -o nfsvers=4.1 $availability_zone.$efs_id.efs.$region.amazonaws.com:/ /efs\n",
+                "# create a file on each machine\n",
+                "instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)\n",
+                "public_ipv4=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)\n",
+                "cat > /efs/${instance_id}_specs.conf <<EOF\n",
+                "instance_id=$instance_id\n",
+                "public_ipv4=$public_ipv4\n",
+                "EOF\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "EFSClientSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web Server Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "0",
+            "ToPort": "65535",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "EFSClientAutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "PublicSubnet0"
+          },
+          {
+            "Ref": "PublicSubnet1"
+          }
+        ],
+        "LaunchConfigurationName": {
+          "Ref": "EFSClientLaunchConfig"
+        },
+        "MinSize": "2",
+        "MaxSize": "2",
+        "DesiredCapacity": "2"
+      }
+    },
+    "EFSFileSystem": {
+      "Type": "AWS::EFS::FileSystem",
+      "Properties": {}
+    },
+    "EFSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "EFS Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "2049",
+            "ToPort": "2049",
+            "SourceSecurityGroupId": {
+              "Ref": "EFSClientSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "EFSMountTargetSubnet0": {
+      "Type": "AWS::EFS::MountTarget",
+      "Properties": {
+        "FileSystemId": {
+          "Ref": "EFSFileSystem"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "EFSSecurityGroup"
+          }
+        ],
+        "SubnetId": {
+          "Ref": "PublicSubnet0"
+        }
+      }
+    },
+    "EFSMountTargetSubnet1": {
+      "Type": "AWS::EFS::MountTarget",
+      "Properties": {
+        "FileSystemId": {
+          "Ref": "EFSFileSystem"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "EFSSecurityGroup"
+          }
+        ],
+        "SubnetId": {
+          "Ref": "PublicSubnet1"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "EFSFileSystemId": {
+      "Description": "The EFSFileSystem ID",
+      "Value": {
+        "Ref": "EFSFileSystem"
+      }
+    }
+  }
+}
