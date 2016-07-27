@@ -1,0 +1,145 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a VPC and force subnets into particular AZs.",
+  "Parameters": {
+    "VPC01CIDRRange": {
+      "Description": "VPC CIDR Range",
+      "Default": "10.0.0.0/24",
+      "Type": "String"
+    },
+    "VPC01PrivateSubnetCIDRRange": {
+      "Description": "Public Subnet CIDR Ranges",
+      "Default": "10.0.0.0/24",
+      "Type": "String"
+    },
+    "VPC02CIDRRange": {
+      "Description": "VPC CIDR Range",
+      "Default": "10.0.1.0/24",
+      "Type": "String"
+    },
+    "VPC02PrivateSubnetCIDRRange": {
+      "Description": "Public Subnet CIDR Ranges",
+      "Default": "10.0.1.0/24",
+      "Type": "String"
+    }
+  },
+  "Mappings": {},
+  "Resources": {
+    "VPC01": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VPC01CIDRRange"
+        }
+      }
+    },
+    "VPC01RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC01"
+        }
+      }
+    },
+    "VPC01PrivateSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VPC01PrivateSubnetCIDRRange"
+        },
+        "VpcId": {
+          "Ref": "VPC01"
+        }
+      }
+    },
+    "VPC01PrivateSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VPC01RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "VPC01PrivateSubnet"
+        }
+      }
+    },
+    "VPC01SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "References a Security Group in VPC02",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "SourceSecurityGroupId": {
+              "Ref": "VPC02SecurityGroup"
+            }
+          }
+        ],
+        "VpcId": {
+          "Ref": "VPC01"
+        }
+      }
+    },
+    "VPC02": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VPC02CIDRRange"
+        }
+      }
+    },
+    "VPC02RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC02"
+        }
+      }
+    },
+    "VPC02PrivateSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VPC02PrivateSubnetCIDRRange"
+        },
+        "VpcId": {
+          "Ref": "VPC02"
+        }
+      }
+    },
+    "VPC02PrivateSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "VPC02RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "VPC02PrivateSubnet"
+        }
+      }
+    },
+    "VPC02SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Allows access to a Security Group in VPC01",
+        "VpcId": {
+          "Ref": "VPC02"
+        }
+      }
+    },
+    "VPC01toVPC02Peering": {
+      "Type": "AWS::EC2::VPCPeeringConnection",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC01"
+        },
+        "PeerVpcId": {
+          "Ref": "VPC02"
+        }
+      }
+    }
+  },
+  "Outputs": {}
+}
