@@ -1,0 +1,2 @@
+# List All Groups with ASGName/Min/Max/Desired Capacity
+`aws autoscaling describe-auto-scaling-groups --max-items 1000 --query 'AutoScalingGroups[*].{AutoScalingGroupName:AutoScalingGroupName,MinSize:MinSize,MaxSize:MaxSize,DesiredCapacity:DesiredCapacity}' --output table`
