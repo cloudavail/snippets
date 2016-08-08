@@ -1,0 +1,13 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/wily64'
+  config.vm.hostname = 'influxdb'
+  config.vm.network :forwarded_port, guest: 8083, host: 8083
+  config.vm.network :forwarded_port, guest: 8086, host: 8086
+  config.vm.network :forwarded_port, guest: 8088, host: 8088
+
+  config.vm.provision(:shell, path: './basic_influxdb.sh')
+
+end
