@@ -16,9 +16,9 @@ iam_user_policy = '{ "Version":"2012-10-17", "Statement":[ { "Effect":"Allow", "
 
 iam_user = aws_client.create_user(Path='/', UserName=username)
 iam_user_credentials = aws_client.create_access_key(UserName=username)
-iam_user_create_policy_result = aws_client.put_user_policy(UserName=username,
-                                                           PolicyName='ec2_read_only',
-                                                           PolicyDocument=iam_user_policy)
+iam_user_put_policy_result = aws_client.put_user_policy(UserName=username,
+                                                        PolicyName='ec2_read_only',
+                                                        PolicyDocument=iam_user_policy)
 
 print 'Username: {}'.format(iam_user_credentials['AccessKey']['UserName'])
 print 'Access Key: {}'.format(iam_user_credentials['AccessKey']['AccessKeyId'])
