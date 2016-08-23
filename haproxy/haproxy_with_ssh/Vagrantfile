@@ -1,0 +1,33 @@
+# objective: create the following:
+# a vagrant instance running haproxy and proxying ssh, http and https
+# a backend vagrant instance accepting these connections
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/xenial64"
+
+  config.vm.define("backend") do |config|
+    config.vm.hostname = "backend"
+    config.vm.network "private_network", ip: "192.168.50.4"
+    config.vm.provision(:shell, path: './backend.sh')
+    # resolves issue with
+    # A VirtualBox machine with the name 'ubuntu-xenial-16.04-cloudimg' already exists.
+    config.vm.provider "virtualbox" do |vb|
+      vb.name = "backend"
+    end 
+  end
+
+  config.vm.define("haproxy") do |config|
+    config.vm.hostname = "haproxy"
+    config.vm.network "private_network", ip: "192.168.50.2"
+    config.vm.provision(:shell, path: './haproxy_with_ssh.sh')
+    # resolves issue with
+    # A VirtualBox machine with the name 'ubuntu-xenial-16.04-cloudimg' already exists.
+    config.vm.provider "virtualbox" do |vb|
+      vb.name = "haproxy"
+    end 
+  end
+
+end
