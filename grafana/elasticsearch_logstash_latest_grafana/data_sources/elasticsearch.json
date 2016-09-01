@@ -1,0 +1,10 @@
+// get datasources: http://localhost:9200/api/datasources
+{
+  "name":"elasticsearch",
+  "type":"elasticsearch",
+  "url":"http://mydatasource.com",
+  "access":"proxy",
+  "basicAuth":false
+}
+
+
