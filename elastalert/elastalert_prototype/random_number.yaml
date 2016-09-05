@@ -1,0 +1,15 @@
+# elastalert-test-rule /etc/elastalert/rules/random_number.yaml
+
+es_host: localhost
+es_port: 9200
+name: random_number
+type: frequency
+timestamp_field: date
+timestamp_type: unix
+index: my_application
+num_events: 1
+timeframe:
+    seconds: 60
+filter:
+- term:
+    random_number: 10
