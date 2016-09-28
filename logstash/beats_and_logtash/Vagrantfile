@@ -1,0 +1,23 @@
+# objective:
+# create a vagrant box that utilizes logstash to accept log data
+# create a vagrant box that utilizes a FileBeat to send log data
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/xenial64"
+
+  config.vm.define("logstash") do |config|
+    config.vm.network "private_network", ip: "192.168.2.5"
+    config.vm.provision "shell", path: "./logstash_listener.sh"
+    config.vm.hostname = 'logstash'
+  end
+
+  config.vm.define("beats") do |config|
+    config.vm.network "private_network", ip: "192.168.2.6"
+    config.vm.provision "shell", path: "./beats_shipper.sh"
+    config.vm.hostname = 'beats'
+  end
+
+end
