@@ -1,0 +1,16 @@
+# objective:
+# create a logstash server that utilizes a field reference to place logs into a particular file
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "bento/centos-7.2"
+
+  config.vm.define("logstash") do |config|
+    config.vm.network "private_network", ip: "192.168.2.5"
+    config.vm.provision "shell", path: "./logstash_field_reference.sh"
+    config.vm.hostname = 'logstash'
+  end
+
+end
