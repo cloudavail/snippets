@@ -1,0 +1,390 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a Jenkins instance utilizing EFS as well as all required VPC resources.",
+  "Parameters": {
+    "JenkinsClientType": {
+      "Description": "Instance Type",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues": [
+        "t2.micro"
+      ],
+      "ConstraintDescription": "must be a t2.micro"
+    },
+    "KeyName": {
+      "Description": "KeyName to use for an Instance",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    }
+  },
+  "Mappings": {
+    "AWSInstanceType2Arch": {
+      "t2.micro": {
+        "Arch": "64"
+      }
+    },
+    "AWSRegionArch2AMI": {
+      "us-east-1": {
+        "64": "ami-e3c3b8f4"
+      },
+      "us-west-1": {
+        "64": "ami-204e0040"
+      },
+      "us-west-2": {
+        "64": "ami-167ba776"
+      }
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true"
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway"
+    },
+    "PublicInternetRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "InternetGateway",
+        "PublicInternetRouteTable"
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "InternetGateway"
+        },
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        }
+      }
+    },
+    "VPCGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "InternetGatewayId": {
+          "Ref": "InternetGateway"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicInternetRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            "0",
+            {
+              "Fn::GetAZs": {
+                "Ref": "AWS::Region"
+              }
+            }
+          ]
+        },
+        "CidrBlock": "10.0.0.0/25",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": {
+          "Fn::Select": [
+            "1",
+            {
+              "Fn::GetAZs": {
+                "Ref": "AWS::Region"
+              }
+            }
+          ]
+        },
+        "CidrBlock": "10.0.0.128/25",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnet0RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet0"
+        }
+      }
+    },
+    "PublicSubnet1RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PublicInternetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet1"
+        }
+      }
+    },
+    "JenkinsLaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": {
+        "AssociatePublicIpAddress": "true",
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "ImageId": {
+          "Fn::FindInMap": [
+            "AWSRegionArch2AMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            {
+              "Fn::FindInMap": [
+                "AWSInstanceType2Arch",
+                {
+                  "Ref": "JenkinsClientType"
+                },
+                "Arch"
+              ]
+            }
+          ]
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "JenkinsServerSecurityGroup"
+          }
+        ],
+        "InstanceType": {
+          "Ref": "JenkinsClientType"
+        },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash -\n",
+                "availability_zone=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)\n",
+                "region=\"",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "\"\n",
+                "efs_id=\"",
+                {
+                  "Ref": "EFSFileSystem"
+                },
+                "\"\n",
+                "apt -y update\n",
+                "apt -y install nfs-common\n",
+                "mkdir -p /var/lib/jenkins\n",
+                "mount -t nfs4 -o nfsvers=4.1 $availability_zone.$efs_id.efs.$region.amazonaws.com:/ /var/lib/jenkins\n",
+                "wget -q -O - https://jenkins-ci.org/debian/jenkins-ci.org.key | sudo apt-key add -\n",
+                "sh -c 'echo deb http://pkg.jenkins-ci.org/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'\n",
+                "apt -y update\n",
+                "apt -y install jenkins"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "JenkinsServerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Jenkins Server Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "8080",
+            "ToPort": "8080",
+            "SourceSecurityGroupId": {
+              "Ref": "JenkinsELBSecurityGroup"
+            }
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "0",
+            "ToPort": "65535",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "JenkinsAutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "LoadBalancerNames": [
+          {
+            "Ref": "JenkinsELB"
+          }
+        ],
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "PublicSubnet0"
+          },
+          {
+            "Ref": "PublicSubnet1"
+          }
+        ],
+        "LaunchConfigurationName": {
+          "Ref": "JenkinsLaunchConfig"
+        },
+        "MinSize": "1",
+        "MaxSize": "1",
+        "DesiredCapacity": "1"
+      }
+    },
+    "JenkinsELBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "web Server ELB Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "0",
+            "ToPort": "65535",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "JenkinsELB": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "Subnets": [
+          {
+            "Ref": "PublicSubnet0"
+          },
+          {
+            "Ref": "PublicSubnet1"
+          }
+        ],
+        "SecurityGroups": [
+          {
+            "Ref": "JenkinsELBSecurityGroup"
+          }
+        ],
+        "HealthCheck": {
+          "Target": "TCP:8080",
+          "HealthyThreshold": "3",
+          "UnhealthyThreshold": "5",
+          "Interval": "30",
+          "Timeout": "5"
+        },
+        "Listeners": [
+          {
+            "LoadBalancerPort": "80",
+            "InstancePort": "8080",
+            "Protocol": "HTTP"
+          }
+        ],
+        "CrossZone": "true",
+        "ConnectionDrainingPolicy": {
+          "Enabled": "true",
+          "Timeout": "60"
+        }
+      }
+    },
+    "EFSFileSystem": {
+      "Type": "AWS::EFS::FileSystem",
+      "Properties": {}
+    },
+    "EFSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "EFS Security Group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "2049",
+            "ToPort": "2049",
+            "SourceSecurityGroupId": {
+              "Ref": "JenkinsServerSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "EFSMountTargetSubnet0": {
+      "Type": "AWS::EFS::MountTarget",
+      "Properties": {
+        "FileSystemId": {
+          "Ref": "EFSFileSystem"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "EFSSecurityGroup"
+          }
+        ],
+        "SubnetId": {
+          "Ref": "PublicSubnet0"
+        }
+      }
+    },
+    "EFSMountTargetSubnet1": {
+      "Type": "AWS::EFS::MountTarget",
+      "Properties": {
+        "FileSystemId": {
+          "Ref": "EFSFileSystem"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "EFSSecurityGroup"
+          }
+        ],
+        "SubnetId": {
+          "Ref": "PublicSubnet1"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "EFSFileSystemId": {
+      "Description": "The EFSFileSystem ID",
+      "Value": {
+        "Ref": "EFSFileSystem"
+      }
+    }
+  }
+}
