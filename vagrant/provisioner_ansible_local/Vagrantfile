@@ -1,0 +1,22 @@
+# objective: create a vagrant image provisioned by ansible
+# reference: https://www.vagrantup.com/docs/provisioning/ansible.html
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/xenial64'
+
+  config.vm.network 'private_network', ip: '192.168.2.5'
+
+  # there are two options for ansible use:
+  # ansible = ansible is installed on the host and run
+  # ansible_local = ansible is installed on the guest and run
+
+  config.vm.provision "ansible_local" do |ansible|
+    ansible.playbook = "./ansible/playbook.yml"
+  end
+
+  config.vm.hostname = 'ansible'
+
+end

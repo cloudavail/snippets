@@ -1,0 +1,12 @@
+---
+- hosts: all
+  tasks:
+    - name: ensure ntpd is at the latest version
+      become: yes
+      apt: pkg=ntp state=latest
+      notify:
+      - restart ntpd
+  handlers:
+    - name: restart ntpd
+      become: yes
+      service: name=ntp state=restarted
