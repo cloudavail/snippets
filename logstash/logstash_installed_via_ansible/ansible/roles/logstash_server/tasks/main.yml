@@ -1,0 +1,21 @@
+---
+
+- name: install java openjdk headless
+  become: yes
+  yum:
+    name: java-1.8.0-openjdk-headless
+    state: present
+
+- name: add elasticsearch Repo
+  become: yes
+  command: rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+
+- name: setup elasticsearch repo
+  become: yes
+  copy: src=elasticsearch.repo dest=/etc/yum.repos.d/elasticsearch.repo
+
+- name: install logstash
+  become: yes
+  yum:
+    name: logstash
+    state: present
