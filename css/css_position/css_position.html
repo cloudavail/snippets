@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+#static {
+  position: static;
+  border: 2px solid #000000;
+}
+#relative {
+  position: relative;
+  /* this will position the element 30px from its normal position
+  left: 30px; when used with a static will have no effect
+   */
+  left: 30px;
+  border: 2px solid #000000;
+}
+#fixed {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  border: 2px solid #000000;
+}
+#absolute {
+  border: 2px solid #000000;
+}
+
+</style>
+<title>CSS Selector</title>
+</head> <!-- Document Header Ends -->
+<body>
+  <div id="static">
+    <p>This is a static position CSS element. This element is placed in the "normal flow of the page."</p>
+  </div>
+  <div id="relative">
+    <p>This is a relative position CSS element.</p>
+  </div>
+  <div id="fixed">
+    <p>This is a fixed position CSS element.</p>
+  </div>
+  <div id="absolute">
+    <p>This is an absolute position CSS element.</p>
+  </div>
+</body>
+</html>
