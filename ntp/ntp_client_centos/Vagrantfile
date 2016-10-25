@@ -1,0 +1,14 @@
+# objective:
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "bento/centos-7.2"
+
+  config.vm.define("ntpclient") do |config|
+    config.vm.provision "shell", path: "./ntp_client_centos.sh"
+    config.vm.hostname = 'ntpclient'
+  end
+
+end
