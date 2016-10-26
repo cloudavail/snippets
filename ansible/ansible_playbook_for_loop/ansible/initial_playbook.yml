@@ -1,0 +1,4 @@
+---
+- hosts: all
+  roles:
+    - sample_vhost_configuration

@@ -1,0 +1,7 @@
+---
+- name: create 
+  become: yes
+  template:
+    src: vhost_configuration.j2
+    dest: "/var/tmp/{{ item }}.conf"
+  with_items: [ 'test01', 'test02' ]
