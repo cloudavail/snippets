@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a Stack that Imports amn Exported Value from Another Stack
+Parameters:
+  SharedVPCName:
+    Type: String
+    Default: ImportFrom
+    Description: VPC of Shared VPC
+Mappings: {}
+Resources:
+  SharedVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group from a VPC in Another Stack
+      VpcId:
+        Fn::ImportValue: !Sub '${SharedVPCName}-VPCId'
+Outputs: {}
