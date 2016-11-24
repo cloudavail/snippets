@@ -1,0 +1,40 @@
+---
+# https://docs.newrelic.com/docs/agents/php-agent/installation/php-agent-installation-overview
+- hosts: all
+  tasks:
+    - name: ensure nginx is installed and at latest version
+      become: yes
+      yum:
+        name: nginx
+        state: latest
+    - name: ensure php-fpm is installed and at latest version
+      become: yes
+      yum:
+        name:  php-fpm
+        state: latest
+    - stat: path=/etc/nginx/nginx.conf
+      register: nginx_conf_file
+    - name: move the default nginx file
+      become: yes
+      when: nginx_conf_file.stat.exists
+      command: mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
+    - name: install an nginx.conf file that passes *.php requests to php-fpm listener
+      become: yes
+      copy:
+        src:  nginx.conf
+        dest: /etc/nginx/nginx.conf
+    - name: install an index.php file
+      become: yes
+      copy:
+        src:  index.php
+        dest: /usr/share/nginx/html/index.php
+    - name: start the php-fpm daemon
+      become: yes
+      systemd:
+        state: started
+        name: php-fpm
+    - name: start the nginx daemon
+      become: yes
+      systemd:
+        state: started
+        name: nginx
