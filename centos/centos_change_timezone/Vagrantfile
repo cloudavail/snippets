@@ -1,0 +1,8 @@
+vagrantfile_api_version = 2
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'bento/centos-7.2'
+  config.vm.provision(:shell, path: './centos_change_timezone.sh')
+
+end
