@@ -1,0 +1,86 @@
+---
+# https://docs.newrelic.com/docs/agents/php-agent/installation/php-agent-installation-overview
+- hosts: all
+  tasks:
+    - name: ensure nginx is installed and at latest version
+      become: yes
+      yum:
+        name: nginx
+        state: latest
+# php-cli is required to run /bin/newrelic-install install
+    - name: ensure php-fpm is installed and at latest version
+      become: yes
+      yum:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - php-fpm
+        - php-cli
+
+# https://docs.newrelic.com/docs/agents/php-agent/installation/php-agent-installation-redhat-centos
+    - name: ensure newrelic repo is installed
+      become: yes
+      yum:
+        name: http://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
+        state: present
+    - name: install newrelic php requirements
+      become: yes
+      yum:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - newrelic-php5-common
+        - newrelic-daemon
+        - newrelic-php5
+
+# installs the NewRelic PHP agent
+# Reference: https://github.com/praseodym/ansible-newrelic-php/blob/master/handlers/main.yml
+    - name: install the NewRelic PHP agent
+      become: yes
+      command: '/bin/newrelic-install install'
+      environment:
+        NR_INSTALL_KEY: 
+        NR_INSTALL_SILENT: true
+
+    - stat: path=/etc/php.d/newrelic.ini
+      register: newrelic_ini_symbolic_link
+    - name: create a symbolic link to the /etc/php.d/newrelic.ini file
+      become: yes
+      when: newrelic_ini_symbolic_link.stat.islnk == False
+      file:
+        src: /etc/php.d/newrelic.ini
+        dest: /etc/php-fpm.d/newrelic.ini
+        state: link
+
+    - stat: path=/etc/nginx/nginx.conf
+      register: nginx_conf_file
+    - name: move the default nginx file
+      become: yes
+      when: nginx_conf_file.stat.exists == True
+      command: mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
+    - name: install an nginx.conf file that passes *.php requests to php-fpm listener
+      become: yes
+      copy:
+        src:  nginx.conf
+        dest: /etc/nginx/nginx.conf
+    - name: install an index.php file
+      become: yes
+      copy:
+        src:  index.php
+        dest: /usr/share/nginx/html/index.php
+
+    - name: start all required services
+      become: yes
+      systemd:
+        state: started
+        name: "{{ item }}"
+      with_items:
+        - newrelic-daemon
+        - php-fpm
+        - nginx
+
+# NOTE: there are issues with connectivity to the /tmp/.newrelic.sock file that appear to require the following:
+# process be performed - I have not "baked" this into the NewRelic PHP Agent install Ansible file
+# systemctl stop newrelic-daemon
+# systemctl start newrelic-daemon
+# systemctl restart php-fpm
