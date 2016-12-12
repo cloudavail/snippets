@@ -1,0 +1,49 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a VPC which will be used in a VPC Peering Arrangement.",
+  "Parameters": {
+    "SharedVPCId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "VPC ID of Shared VPC"
+    }
+  },
+  "Mappings": {},
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.1.0/24"
+      }
+    },
+    "PublicSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.1.0/24",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security Group in Client VPC",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "VPCPeeringConnectionShared": {
+      "Type": "AWS::EC2::VPCPeeringConnection",
+      "Properties": {
+        "PeerVpcId": {
+          "Ref": "SharedVPCId"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    }
+  },
+  "Outputs": {}
+}
