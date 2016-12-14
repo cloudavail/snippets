@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an Auto Scaling Group of webservers that reference an Exported
+  Output from another CloudFormation stack.
+Parameters:
+  Environment:
+    Description: name of the environment for the given Webservers
+    Type: String
+    Default: test
+    AllowedValues:
+    - test
+  NetworkVPCName:
+    Description: Name of an active CloudFormation stack that contains the networking resources.
+    Type: String
+    Default: NetworkVPC
+  webServerInstanceType:
+    Description: web Server EC2 instance type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    us-east-1:
+      '64': ami-e6d5d2f1
+    us-west-1:
+      '64': ami-bcb9eedc
+    us-west-2:
+      '64': ami-73208813
+Resources:
+  webServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: webServerInstanceType
+          - Arch
+      SecurityGroups:
+      - Ref: webServerSecurityGroup
+      InstanceType:
+        Ref: webServerInstanceType
+      UserData:
+        Fn::Base64:
+          !Sub
+          - | 
+              #!/bin/bash -
+              apt -y update
+              apt -y install apache2
+              ami_id=$(curl --silent http://169.254.169.254/latest/meta-data/ami-id)
+              instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
+              instance_type=$(curl --silent http://169.254.169.254/latest/meta-data/instance-type)
+              local_ip=$(curl --silent http://169.254.169.254/latest/meta-data/local-ipv4)
+              public_ip=$(curl --silent http://169.254.169.254/latest/meta-data/public-ipv4)
+              region=${AWS::Region}
+              environment=${Environment}
+              public_subnet_id=${PublicSubnetId}
+              vpc_id=${VpcId}
+              cat > /var/www/html/index.html <<EOF
+              <html>
+              <head>
+              </head>
+              <body>
+              <h1>Server Information</h1>
+              <ul>
+                <li>AMI: $ami_id</li>
+                <li>Instance ID: $instance_id</li>
+                <li>Instance Type: $instance_type</li>
+                <li>Local IP: $local_ip</li>
+                <li>Public IP: $public_ip</li>
+                <li>Region: $region</li>
+                <li>Environment: $environment</li>
+                <li>Public Subnet ID: $public_subnet_id</li>
+                <li>VPC ID: $vpc_id</li>
+              </ul>
+              </body>
+              </html>
+              EOF
+          - PublicSubnetId:
+              Fn::ImportValue: !Sub ${NetworkVPCName}-PublicSubnet
+            VpcId:
+              Fn::ImportValue: !Sub ${NetworkVPCName}-VPCId
+  webServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server Security Group
+      VpcId:
+        Fn::ImportValue: !Sub ${NetworkVPCName}-VPCId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        SourceSecurityGroupId:
+          Ref: webServerELBSecurityGroup
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+  webServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Fn::ImportValue: !Sub ${NetworkVPCName}-PublicSubnet
+      LaunchConfigurationName:
+        Ref: webServerLaunchConfig
+      MinSize: '2'
+      MaxSize: '2'
+      DesiredCapacity: '2'
+      LoadBalancerNames:
+      - Ref: webServerELB
+      Tags:
+      - Key: Name
+        Value: webserver-asg
+        PropagateAtLaunch: true
+  webServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server ELB Security Group
+      VpcId:
+        Fn::ImportValue: !Sub ${NetworkVPCName}-VPCId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+  webServerELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+      - Fn::ImportValue: !Sub ${NetworkVPCName}-PublicSubnet
+      SecurityGroups:
+      - Ref: webServerELBSecurityGroup
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '30'
+        Timeout: '5'
+      Listeners:
+      - LoadBalancerPort: '80'
+        InstancePort: '80'
+        Protocol: HTTP
+      CrossZone: true
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: '60'
+Outputs:
+  webServerELBDNSName:
+    Description: The DNSName of the webServer ELB
+    Value:
+      Fn::GetAtt:
+      - webServerELB
+      - DNSName
