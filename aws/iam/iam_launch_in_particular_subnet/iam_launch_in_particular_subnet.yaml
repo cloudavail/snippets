@@ -80,18 +80,18 @@ Resources:
             # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-supported-iam-actions-resources.html
             # https://aws.amazon.com/blogs/security/how-to-help-lock-down-a-users-amazon-ec2-capabilities-to-a-single-vpc/
             # Note regarding the use of wildcards for "Region" and "Account ID", example:
-            # - !Sub arn:aws:ec2:REGION:*:image/*
-            # - !Sub arn:aws:ec2:*:*:image/*
-            # - !Sub arn:aws:ec2:*:ACCOUNT_ID:image/*
-            # - !Sub arn:aws:ec2:*:*:image/*
+            # - arn:aws:ec2:REGION:*:image/*
+            # - arn:aws:ec2:*:*:image/*
+            # - arn:aws:ec2:*:ACCOUNT_ID:image/*
+            # - arn:aws:ec2:*:*:image/*
             # this is allowed, whereas null values arn:aws:ec2:::image/* do not allow access to particular resources.
-            - !Sub arn:aws:ec2:*::image/*
-            - !Sub arn:aws:ec2:*:*:instance/*
-            - !Sub arn:aws:ec2:*:*:key-pair/*
-            - !Sub arn:aws:ec2:*:*:network-interface/*
-            - !Sub arn:aws:ec2:*:*:security-group/*
-            - !Sub arn:aws:ec2:*:*:subnet/${PrivateSubnet01}
-            - !Sub arn:aws:ec2:*:*:volume/*
+            - arn:aws:ec2:*::image/*
+            - arn:aws:ec2:*:*:instance/*
+            - arn:aws:ec2:*:*:key-pair/*
+            - arn:aws:ec2:*:*:network-interface/*
+            - arn:aws:ec2:*:*:security-group/*
+            - !sub arn:aws:ec2:*:*:subnet/${PrivateSubnet01}
+            - arn:aws:ec2:*:*:volume/*
   RestrictedIAMUserAccessKey:
     Type: AWS::IAM::AccessKey
     Properties:
