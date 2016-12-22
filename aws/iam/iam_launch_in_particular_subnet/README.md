@@ -1,5 +1,10 @@
 # Overview
-Running this template will create a VPC that contains an Auto Scaling Group with instances that have public IP addresses and can access the Internet.
+Running this template will create:
+
+1. a VPC with two subnets.
+2. an IAM user with:
+  a. An access key / secret key.
+  b. Authorization to launch EC2 instances only in one of those subnets.
 
 # Validate the Template
 
