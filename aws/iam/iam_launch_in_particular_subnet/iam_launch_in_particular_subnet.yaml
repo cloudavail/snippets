@@ -90,7 +90,7 @@ Resources:
             - arn:aws:ec2:*:*:key-pair/*
             - arn:aws:ec2:*:*:network-interface/*
             - arn:aws:ec2:*:*:security-group/*
-            - !sub arn:aws:ec2:*:*:subnet/${PrivateSubnet01}
+            - !Sub arn:aws:ec2:*:*:subnet/${PrivateSubnet01}
             - arn:aws:ec2:*:*:volume/*
   RestrictedIAMUserAccessKey:
     Type: AWS::IAM::AccessKey
