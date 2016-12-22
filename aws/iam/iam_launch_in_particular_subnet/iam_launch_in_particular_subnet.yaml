@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an IAM user that allows instances to only be launched in a particular subnet.
+Parameters: {}
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+      RouteTableId:
+        Ref: PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/25
+      VpcId:
+        Ref: VPC
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicInternetRouteTable
+      SubnetId:
+        Ref: PublicSubnet01
+  PrivateInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/25
+      VpcId:
+        Ref: VPC
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PrivateInternetRouteTable
+      SubnetId:
+        Ref: PrivateSubnet01
+  RestrictedIAMUser:
+    Type: AWS::IAM::User
+    Properties: 
+      UserName: RestrictedIAMUser
+      Path: /
+      Policies:
+      - PolicyName: RestrictedIAMPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:RunInstances
+            Resource:
+            # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-supported-iam-actions-resources.html
+            # https://aws.amazon.com/blogs/security/how-to-help-lock-down-a-users-amazon-ec2-capabilities-to-a-single-vpc/
+            # Note regarding the use of wildcards for "Region" and "Account ID", example:
+            # - !Sub arn:aws:ec2:REGION:*:image/*
+            # - !Sub arn:aws:ec2:*:*:image/*
+            # - !Sub arn:aws:ec2:*:ACCOUNT_ID:image/*
+            # - !Sub arn:aws:ec2:*:*:image/*
+            # this is allowed, whereas null values arn:aws:ec2:::image/* do not allow access to particular resources.
+            - !Sub arn:aws:ec2:*::image/*
+            - !Sub arn:aws:ec2:*:*:instance/*
+            - !Sub arn:aws:ec2:*:*:key-pair/*
+            - !Sub arn:aws:ec2:*:*:network-interface/*
+            - !Sub arn:aws:ec2:*:*:security-group/*
+            - !Sub arn:aws:ec2:*:*:subnet/${PrivateSubnet01}
+            - !Sub arn:aws:ec2:*:*:volume/*
+  RestrictedIAMUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref RestrictedIAMUser
+Outputs:
+  RestrictiedIAMUserAccessKey:
+    Description: the secret key for the Restricted Access IAM User
+    Value: !Ref RestrictedIAMUserAccessKey
+  RestrictiedIAMUserSecretKey:
+    Description: the secret key for the Restricted Access IAM User
+    Value: !GetAtt RestrictedIAMUserAccessKey.SecretAccessKey
