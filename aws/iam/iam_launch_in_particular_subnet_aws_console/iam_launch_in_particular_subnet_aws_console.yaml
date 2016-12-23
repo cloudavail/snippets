@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an IAM user that allows instances to only be launched in a particular subnet.
+Parameters:
+  RestrictedIAMUserPassword:
+    Type: String
+    Default: GHG+8RRJV6sg86Z4NeXxnA
+    Description: AWS Console password for the IAM User
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+  PrivateInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateInternetRouteTable
+      SubnetId: !Ref PrivateSubnet01
+  RestrictedIAMUser:
+    Type: AWS::IAM::User
+    Properties: 
+      UserName: RestrictedIAMUser
+      Path: /
+      LoginProfile:
+        Password: !Ref RestrictedIAMUserPassword
+      ManagedPolicyArns:
+        # note that ReadOnlyAccess allows IAM users to access both API calls _and_ data stored in
+        # AWS resources such as S3 buckets or DynamoDB tables
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      Policies:
+        - PolicyName: RestrictedIAMPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+                - ec2:RunInstances
+              Resource:
+                - arn:aws:ec2:*::image/*
+                - arn:aws:ec2:*:*:instance/*
+                - arn:aws:ec2:*:*:key-pair/*
+                - arn:aws:ec2:*:*:network-interface/*
+                - arn:aws:ec2:*:*:security-group/*
+                - !Sub arn:aws:ec2:*:*:subnet/${PrivateSubnet01}
+                - arn:aws:ec2:*:*:volume/*
+            - Effect: Allow
+              Action:
+                - ec2:AttachVolume
+                - ec2:AuthorizeSecurityGroup*
+                - ec2:CreateKeyPair
+                - ec2:CreateSecurityGroup
+                - ec2:CreateTags
+                - ec2:DeleteVolume
+                - ec2:DetachVolume
+                # ec2:StopInstances, ec2:StartInstances and ec2:TerminateInstances
+                # do not support "EC2 Resource Level" IAM Permissions
+                # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-supported-iam-actions-resources.html
+                - ec2:RebootInstances
+                - ec2:StartInstances
+                - ec2:StopInstances
+                - ec2:TerminateInstances
+              Resource: '*'
+Outputs:
+  # Note that outputting the password is not ideal outside of testing scenarios
+  RestrictedIAMUserPassword:
+    Description: AWS Console password for the IAM User
+    Value: !Ref RestrictedIAMUserPassword
