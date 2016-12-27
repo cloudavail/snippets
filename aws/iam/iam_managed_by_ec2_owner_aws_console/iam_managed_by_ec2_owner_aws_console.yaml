@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an IAM user that allows instances to only be launched in a particular subnet.
+Parameters:
+  RestrictedIAMUserPassword:
+    Type: String
+    Default: GHG+8RRJV6sg86Z4NeXxnB
+    Description: AWS Console password for the IAM User  
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PublicSubnet01
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+  RestrictedIAMUser:
+    # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html
+    Type: AWS::IAM::User
+    Properties: 
+      LoginProfile:
+        Password: !Ref RestrictedIAMUserPassword
+      ManagedPolicyArns:
+        # note that ReadOnlyAccess allows IAM users to access both API calls _and_ data stored in
+        # AWS resources such as S3 buckets or DynamoDB tables
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      Path: /
+      Policies:
+      - PolicyName: RestrictedIAMPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            # I have have been unable to confine the "ec2:RunInstances" action
+            # to only instances containing a tag matching ${aws:username}
+            Action:
+            - ec2:RunInstances
+            Resource:
+            - arn:aws:ec2:*::image/*
+            - arn:aws:ec2:*:*:instance/*
+            - arn:aws:ec2:*:*:key-pair/*
+            - arn:aws:ec2:*:*:network-interface/*
+            - arn:aws:ec2:*:*:security-group/*
+            - arn:aws:ec2:*:*:subnet/*
+            - arn:aws:ec2:*:*:volume/*
+          - Effect: Allow
+            # allows creating Tags on any EC2 type resource
+            # I have been unable to identify how to confine the Key of the tag
+            # or allowed Values
+            Action:
+            - ec2:CreateTags
+            Resource:
+            - arn:aws:ec2:*:*:instance/*
+          - Effect: Allow
+            Action:
+            - ec2:RebootInstances
+            - ec2:StartInstances
+            - ec2:StopInstances
+            - ec2:TerminateInstances
+            Resource:
+            - arn:aws:ec2:*:*:instance/*
+            Condition:
+              StringEquals:
+                ec2:ResourceTag/Owner: ${aws:username}
+          - Effect: Allow
+            Action:
+            # the actions below support "EC2 Resource Level IAM Permissions"
+            # but don't offer any practical way of allowing only these actions
+            # on a newly launched EC2 resource
+            # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-supported-iam-actions-resources.html
+            - ec2:AttachVolume
+            - ec2:AuthorizeSecurityGroup*
+            - ec2:DeleteVolume
+            - ec2:DetachVolume
+            - ec2:RebootInstances
+            - ec2:StartInstances
+            - ec2:StopInstances
+            - ec2:TerminateInstances
+            # the actions below do not support "EC2 Resource Level IAM Permissions"
+            # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-supported-iam-actions-resources.html
+            # in other words - they must be allowed on arn:aws:ec2:*:*
+            - ec2:CreateKeyPair
+            - ec2:CreateSecurityGroup
+            - ec2:CreateTags
+            Resource: '*'
+      UserName: RestrictedIAMUser
+Outputs:
+  # Note that outputting the password is not ideal outside of testing scenarios
+  RestrictedIAMUserPassword:
+    Description: AWS Console password for the IAM User
+    Value: !Ref RestrictedIAMUserPassword
+  PublicSubnet01Id:
+    Description: the subnet ID of PublicSubnet01
+    Value: !Ref PublicSubnet01
