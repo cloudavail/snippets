@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an IAM user that allows instances to only be launched in a particular subnet.
+Parameters: {}
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PublicSubnet01
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+  RestrictedIAMUser:
+    # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html
+    Type: AWS::IAM::User
+    Properties: 
+      UserName: RestrictedIAMUser
+      Path: /
+      Policies:
+      - PolicyName: RestrictedIAMPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            # I have have been unable to confine the "ec2:RunInstances" action
+            # to only instances containing a tag matching ${aws:username}
+            Action:
+            - ec2:RunInstances
+            Resource:
+            - arn:aws:ec2:*::image/*
+            - arn:aws:ec2:*:*:instance/*
+            - arn:aws:ec2:*:*:key-pair/*
+            - arn:aws:ec2:*:*:network-interface/*
+            - arn:aws:ec2:*:*:security-group/*
+            - arn:aws:ec2:*:*:subnet/*
+            - arn:aws:ec2:*:*:volume/*
+          - Effect: Allow
+            # allows creating Tags on any EC2 type resource
+            # I have been unable to identify how to confine the Key of the tag
+            # or allowed Values
+            Action:
+            - ec2:CreateTags
+            Resource:
+            - arn:aws:ec2:*:*:instance/*
+          - Effect: Allow
+            Action:
+            - ec2:RebootInstances
+            - ec2:StartInstances
+            - ec2:StopInstances
+            - ec2:TerminateInstances
+            Resource:
+            - arn:aws:ec2:*:*:instance/*
+            Condition:
+              StringEquals:
+                ec2:ResourceTag/Owner: ${aws:username}
+  RestrictedIAMUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref RestrictedIAMUser
+Outputs:
+  RestrictiedIAMUserAccessKey:
+    Description: the secret key for the Restricted Access IAM User
+    Value: !Ref RestrictedIAMUserAccessKey
+  RestrictiedIAMUserSecretKey:
+    Description: the secret key for the Restricted Access IAM User
+    Value: !GetAtt RestrictedIAMUserAccessKey.SecretAccessKey
+  PublicSubnet01Id:
+    Description: the subnet ID of PublicSubnet01
+    Value: !Ref PublicSubnet01
