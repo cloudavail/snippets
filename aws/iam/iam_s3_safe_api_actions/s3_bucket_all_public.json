@@ -1,0 +1,18 @@
+{
+  "Id": "Policy1397632521960",
+  "Statement": [
+    {
+      "Sid": "Stmt1482962002",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::bucketname/*",
+      "Principal": {
+        "AWS": [
+          "*"
+        ]
+      }
+    }
+  ]
+}
