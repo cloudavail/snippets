@@ -1,0 +1,24 @@
+---
+Description: creates an AWS::Route53::HostedZone.
+Mappings: {}
+Outputs:
+  HostedZoneId:
+    Description: Hosted Zone ID
+    Export:
+      Name: !Sub ${AWS::StackName}-HostedZoneId
+    Value: !Ref HostedZone
+  HostedZoneName:
+    Description: Hosted Zone Name
+    Export:
+      Name: !Sub ${AWS::StackName}-HostedZoneName
+    Value: !Ref HostedZoneName
+Parameters:
+  HostedZoneName:
+    Default: test.cloudavail.com.
+    Description: AWS::Route53::HostedZone Name
+    Type: String
+Resources:
+  HostedZone:
+    Properties:
+      Name: !Ref HostedZoneName
+    Type: AWS::Route53::HostedZone

@@ -1,0 +1,26 @@
+---
+Description: duplicates AWS CloudFormation exports from one region to another.
+Mappings: {}
+Outputs:
+  HostedZoneId:
+    Description: Hosted Zone ID
+    Export:
+      Name: !Sub ${AWS::StackName}-HostedZoneId
+    Value: !Ref HostedZoneId
+  HostedZoneName:
+    Description: Hosted Zone Name
+    Export:
+      Name: !Sub ${AWS::StackName}-HostedZoneName
+    Value: !Ref HostedZoneName
+Parameters:
+  HostedZoneId:
+    Description: AWS::Route53::HostedZone Id
+    Type: String
+  HostedZoneName:
+    Description: AWS::Route53::HostedZone Name
+    Type: String
+Resources:
+  NullResource:
+    Type: "AWS::SNS::Topic"
+    Properties: 
+      TopicName: !Sub ${AWS::StackName}-NullResource
