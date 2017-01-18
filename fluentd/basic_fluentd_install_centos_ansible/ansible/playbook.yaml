@@ -1,0 +1,28 @@
+---
+- hosts: all
+  tasks:
+    - name: install fluentd repository
+      become: true
+      yum_repository:
+        name: TreasureData
+        description: TreasureData
+        baseurl: http://packages.treasuredata.com/2/redhat/$releasever/$basearch
+        gpgcheck: 1
+        gpgkey: https://packages.treasuredata.com/GPG-KEY-td-agent
+    - name: install fluentd
+      become: true
+      yum:
+        name: td-agent
+        state: present
+    - name: start fluentd service
+      become: true
+      service:
+        name: td-agent
+        state: started
+        # td-agent service is enabled automatically
+        # so enabled: yes is not needed
+        # enabled: yes also results in the following error
+        # fatal: [default]: FAILED! => \
+        # {"changed": false, "failed": true, "msg": "Boolean present not in either boolean list"}
+        # if needed, confirm enabled by running chkconfig
+        # enabled: yes
