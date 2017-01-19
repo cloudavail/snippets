@@ -1,0 +1,67 @@
+---
+
+- name: install fluentd repository
+  become: true
+  yum_repository:
+    name: TreasureData
+    description: TreasureData
+    baseurl: http://packages.treasuredata.com/2/redhat/$releasever/$basearch
+    gpgcheck: 1
+    gpgkey: https://packages.treasuredata.com/GPG-KEY-td-agent
+- name: install fluentd
+  become: true
+  yum:
+    name: td-agent
+    state: present
+
+# create a fluentd directory where individual fluentd configuration files can be copied
+- name: create fluentd configuration directories
+  become: true
+  file:
+    path: "/etc/td-agent/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+  with_items:
+    - config.d
+    - config.d/source.d
+    - config.d/match.d
+
+# create a sysconfig file that ensures td-agent is run as root
+# this makes available files that are owned by user/group root
+- name: create td-agent.conf file
+  become: true
+  copy:
+    src: files/td-agent
+    dest: /etc/sysconfig/td-agent
+    owner: root
+    group: root
+
+# create a default td-agent.conf file - this file includes all config.d/* configuration files
+- name: create td-agent.conf file
+  become: true
+  template:
+    src: templates/td-agent.conf
+    dest: /etc/td-agent/td-agent.conf
+    owner: root
+    group: root
+
+# create the source and match files
+- name: create td-agent files specific to installation
+  become: true
+  template:
+    src: "templates/config.d/{{ item.src }}"
+    dest: "/etc/td-agent/config.d/{{ item.dest }}"
+    owner: root
+    group: root
+  with_items:
+    - src: source.d/system_logs.conf
+      dest: source.d/system_logs.conf
+    - src: match.d/standard.conf
+      dest: match.d/standard.conf
+
+- name: start fluentd service
+  become: true
+  service:
+    name: td-agent
+    state: started

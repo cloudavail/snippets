@@ -1,0 +1,14 @@
+# objective: create a vagrant instance that runs docker
+
+vagrantfile_api_version = '2'
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'centos/7'
+  config.vm.hostname = 'fluentd'
+
+  config.vm.provision 'ansible_local' do |ansible|
+    ansible.playbook = './ansible/playbook.yml'
+  end
+
+end

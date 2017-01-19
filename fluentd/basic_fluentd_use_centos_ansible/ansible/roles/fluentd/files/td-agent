@@ -1,0 +1,5 @@
+# setting TD_AGENT_USER and TD_AGENT_GROUP
+# makes possible accessing log files owned by root, such as:
+# /var/log/messages and /var/log/secure
+TD_AGENT_USER=root
+TD_AGENT_GROUP=root
