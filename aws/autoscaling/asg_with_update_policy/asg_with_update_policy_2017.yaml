@@ -78,7 +78,6 @@ Resources:
   WebServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      KeyName: asgtest
       AssociatePublicIpAddress: true
       ImageId:
         Fn::FindInMap:
