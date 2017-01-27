@@ -110,6 +110,10 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       DesiredCapacity: 4
+      # HealthCheckGracePeriod allows "x" seconds before the 
+      # HealthCheck begins checking the health of a given instance
+      HealthCheckGracePeriod: 60
+      HealthCheckType: ELB
       LaunchConfigurationName: !Ref WebServerLaunchConfig
       LoadBalancerNames:
         - !Ref WebServerELB
