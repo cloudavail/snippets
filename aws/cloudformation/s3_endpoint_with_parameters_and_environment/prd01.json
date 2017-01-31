@@ -1,0 +1,6 @@
+[
+  {
+    "ParameterKey" : "S3EndpointAllowedResources",
+    "ParameterValue" : "cloudavail-prd01-logs, cloudavail-prd01-my_application_bucket"
+  }
+]

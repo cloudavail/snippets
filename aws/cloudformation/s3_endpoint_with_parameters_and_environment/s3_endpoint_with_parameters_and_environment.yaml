@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a VPC with an S3 endpoint and import a list of "Allowed Resources"
+Parameters:
+  S3EndpointAllowedResources:
+    Description: Resources to which the S3 Endpoint should allow acccess
+    Type: CommaDelimitedList
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  PrivateSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet
+  S3VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - s3:*
+          Effect: Allow
+          Principal: '*'
+          Resource:
+            Ref: S3EndpointAllowedResources
+        Version: '2012-10-17'
+      RouteTableIds:
+      - !Ref PrivateSubnetRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
+Outputs: {}
