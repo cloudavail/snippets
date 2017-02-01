@@ -1,0 +1,14 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a VPC containing an instance, an S3 bucket and a VPC Endpoint
+Mappings: {}
+Resources:
+  S3BucketAllowedAlternateegion:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Sub cloudavail-allowed-${AWS::Region}
+  S3BucketDeniedAlternateegion:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Sub cloudavail-denied-${AWS::Region}
+Outputs: {}

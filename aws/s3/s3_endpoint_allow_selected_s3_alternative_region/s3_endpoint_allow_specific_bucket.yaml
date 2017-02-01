@@ -1,0 +1,158 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a VPC containing an instance, an S3 bucket and a VPC Endpoint
+Parameters:
+  ServerKeyName:
+    Description: KeyName for Server
+    Type: AWS::EC2::KeyPair::KeyName
+  ServerInstanceType:
+    Description: Server EC2 instance type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    us-east-1:
+      '64': ami-4ae1fb5d
+    us-west-1:
+      '64': ami-818fdfe1
+    us-west-2:
+      '64': ami-a41eaec4
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId:  !Ref PublicSubnet
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref ServerInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: ServerInstanceType
+          - Arch
+      KeyName: !Ref ServerKeyName
+      SecurityGroups:
+        - !Ref ServerSecurityGroup
+      InstanceType: !Ref ServerInstanceType
+  ServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref ServerIAMRole
+  ServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+  ServerIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+      - Ref: ServerIAMRole
+      PolicyName: ServerS3Policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource:
+            - arn:aws:s3:::*
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+  ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      LaunchConfigurationName: !Ref ServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+  S3BucketAllowedSameRegion:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Sub cloudavail-allowed-${AWS::Region}
+  S3BucketDeniedSameRegion:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Sub cloudavail-denied-${AWS::Region}
+  S3VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketAllowedSameRegion}
+              - !Sub arn:aws:s3:::cloudavail-allowed-*
+      RouteTableIds:
+        - !Ref PublicInternetRouteTable
+      ServiceName: !Sub com.amazonaws.us-west-1.s3
+      VpcId: !Ref VPC
+Outputs: {}
