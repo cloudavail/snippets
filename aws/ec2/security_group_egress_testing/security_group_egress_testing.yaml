@@ -1,0 +1,283 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a VPC and resources for testing security group egress.
+Parameters:
+  DBInstancePassword:
+    Description: DB Instance Password
+    Type: String
+    Default: wC2tKfesQfff9f9Q
+  KeyName:
+    Description: WebServer KeyName
+    Type: String
+  WebServerInstanceType:
+    Description: WebServer Instance Type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+  PublicSubnet01CIDRRange:
+    Description: VPC CIDR IP
+    Type: String
+    Default: 10.0.0.0/25
+  PublicSubnet02CIDRRange:
+    Description: VPC CIDR IP
+    Type: String
+    Default: 10.0.0.128/25
+  VPCCIDRRange:
+    Description: VPC CIDR IP
+    Type: String
+    Default: 10.0.0.0/24
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    us-east-1:
+      '64': ami-6d1c2007
+    us-east-2:
+      '64': ami-6a2d760f
+    us-west-1:
+      '64': ami-af4333cf
+    us-west-2:
+      '64': ami-d2c924b2
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDRRange
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      # note that this may cause problems in Accounts that
+      # make available AvailabilityZones that do not
+      # support VPC subnets
+      AvailabilityZone: 
+        Fn::Select: 
+          - 0
+          - Fn::GetAZs: ""
+      CidrBlock: !Ref PublicSubnet01CIDRRange
+      VpcId: !Ref VPC
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      # note that this may cause problems in Accounts that
+      # make available AvailabilityZones that do not
+      # support VPC subnets
+      AvailabilityZone: 
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs: ""
+      CidrBlock: !Ref PublicSubnet02CIDRRange
+      VpcId: !Ref VPC
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+  WebServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: WebServerInstanceType
+          - Arch
+      InstanceType: !Ref WebServerInstanceType
+      KeyName: !Ref KeyName
+      SecurityGroups:
+      - Ref: WebServerSecurityGroup
+      UserData:
+        Fn::Base64: | 
+          #!/bin/bash -
+          yum -y update
+          yum -y install httpd
+          systemctl restart httpd
+          # used for testing DNS connectivity
+          yum -y install bind-utils
+          # used for testing MySQL connectivity
+          yum -y install mysql
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WebServer Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      # needed to allow testing via ssh
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      # needed to allow connectivitity from ELB
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        SourceSecurityGroupId: !Ref WebServerELBSecurityGroup
+      SecurityGroupEgress:
+      # needed to allow connectivitity to HTTP Servers (web servers)
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      # needed to allow connectivitity to HTTPS Servers (secure web servers)
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      # needed to allow connectivitity to ntp Servers
+      # still investigating connectivity
+      - IpProtocol: udp
+        FromPort: 123
+        ToPort: 123
+        CidrIp: 0.0.0.0/0
+      # DNS - resolution is possible without a rule
+      # MySQL Connectivity - needs to be done _outside_ of the security group,
+      # else a circular dependency is created
+      # DB Security Group = allows WebServerSecurityGroup in
+      # WebServerSecurityGroup = requires DBSecurityGroup out
+  # required to allow WebServers to access DBSecurityGroup
+  WebServerMySQLSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+        - DBSecurityGroup
+        - GroupId
+      GroupId:
+        Fn::GetAtt:
+        - WebServerSecurityGroup
+        - GroupId
+  WebServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Ref: PublicSubnet01
+      - Ref: PublicSubnet02
+      LaunchConfigurationName: !Ref WebServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      LoadBalancerNames:
+      - Ref: WebServerELB
+  WebServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WebServer ELB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      # needed to allow connectivitity from World
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      # needed to allow the ELB Security Group to connect to Backend Instances
+      # this creates a circular dependency
+      # - IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   SourceSecurityGroupId: !Ref WebServerSecurityGroup
+      # note that the below allows ELB connectivity on port 80 to
+      # any host that might be in a given VPC
+      # you _probably_ aren't worried about AWS ELB establishing an outbound
+      # connection to anything except of your EC2 Instances
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !Ref VPCCIDRRange
+  WebServerELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+      - Ref: PublicSubnet01
+      - Ref: PublicSubnet02
+      SecurityGroups:
+      - Ref: WebServerELBSecurityGroup
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+      Listeners:
+      - LoadBalancerPort: 80
+        InstancePort: 80
+        Protocol: HTTP
+      CrossZone: true
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 60
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DBSubnetGroup
+      SubnetIds: 
+      - Ref: PublicSubnet01
+      - Ref: PublicSubnet02
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: DB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 3306
+        ToPort: 3306
+        SourceSecurityGroupId: !Ref WebServerSecurityGroup
+      SecurityGroupEgress:
+      # SecurityGroupEgress: {} is not allowed
+      # if no rule is provided - then the rule tcp 0.0.0.0/0 is added automatically
+      # 127.0.0.1/32 allows communication only to the instance itself
+      # -1 allows all protocols, see
+      # http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_AuthorizeSecurityGroupIngress.html
+      - IpProtocol: -1
+        CidrIp: 127.0.0.1/32
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      DBInstanceClass: db.t2.micro
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Engine: MySQL
+      EngineVersion: 5.7
+      MasterUsername: root
+      MasterUserPassword: !Ref DBInstancePassword
+      PubliclyAccessible: false
+      VPCSecurityGroups:
+        - Ref: DBSecurityGroup
+Outputs:
+  WebServerELBDNSName:
+    Description: The DNSName of the WebServer ELB
+    Value:
+      Fn::GetAtt:
+      - WebServerELB
+      - DNSName
