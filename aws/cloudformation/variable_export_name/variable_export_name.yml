@@ -2,10 +2,15 @@
 Description: using a parameter to define an "Export" name.
 Mappings: {}
 Outputs:
-  S3BucketName:
+  S3BucketNameRef:
     Description: S3 Bucket Name
     Export:
       Name: !Ref NameOfExport
+    Value: !Ref S3Bucket
+  S3BucketNameSub:
+    Description: S3 Bucket Name
+    Export:
+      Name: !Sub ThisIsThe-${NameOfExport}
     Value: !Ref S3Bucket
 Parameters:
   NameOfExport:
