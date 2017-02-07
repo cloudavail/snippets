@@ -1,0 +1,16 @@
+---
+Description: using a parameter to define an "Export" name.
+Mappings: {}
+Outputs:
+  S3BucketName:
+    Description: S3 Bucket Name
+    Export:
+      Name: !Ref NameOfExport
+    Value: !Ref S3Bucket
+Parameters:
+  NameOfExport:
+    Description: this is the name of a given export
+    Type: String
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
