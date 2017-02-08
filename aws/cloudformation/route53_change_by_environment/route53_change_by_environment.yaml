@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+# note: I'm not sure if I would advise what is described in this stack
+# but people pay me a lot of money to do things like this
+Description: Create stack where resources are named ".com" if production and ".net" if not production
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      # note: you probably _don't_ want to the names below
+      # for your own naming
+      - production
+      - qa
+      - development
+  comHostedZoneName:
+    Default: cloudavail.com
+    Type: String
+  netHostedZoneName:
+    Default: cloudavail.net
+    Type: String
+Conditions:
+  IsProduction:
+    Fn::Equals:
+    - Ref: Environment
+    - production
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  # note: the ELB Security Group is a "Null" group
+  # simply responsible for allowing an ELB to be created
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ELB Security Group
+      VpcId: !Ref VPC
+  # note: the ELB is a "Null" ELB
+  # simply responsible for allowing Route53 to point at something
+  ELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Listeners:
+      - LoadBalancerPort: 80
+        InstancePort: 80
+        Protocol: HTTP
+      Scheme: internal
+      SecurityGroups:
+      - Ref: ELBSecurityGroup
+      Subnets:
+        - !Ref PrivateSubnet
+  # for the purposes of this test, we will assume that when:
+  # Environment = "Production" resources are built in ".com" zone
+  # Environment != "Production" resources are built in ".net" zone
+  # we will build the zones regardless
+  comRoute53HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties: 
+      Name: !Ref comHostedZoneName
+      VPCs:
+        - VPCId: !Ref VPC
+          VPCRegion: !Ref AWS::Region
+  netRoute53HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties: 
+      Name: !Ref netHostedZoneName
+      VPCs:
+        - VPCId: !Ref VPC
+          VPCRegion: !Ref AWS::Region
+  ELBRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName:
+          Fn::GetAtt:
+          - ELB
+          - DNSName
+        HostedZoneId:
+          Fn::GetAtt:
+          - ELB
+          - CanonicalHostedZoneNameID
+      HostedZoneId: !If
+        - IsProduction
+        - !Ref comRoute53HostedZone
+        - !Ref netRoute53HostedZone
+      Name: !If
+        - IsProduction
+        - elb.test.cloudavail.com
+        - elb.test.cloudavail.net
+      Type: A
+Outputs: {}
