@@ -91,17 +91,15 @@ Resources:
         - !Ref WebServerSecurityGroup
       InstanceType: !Ref WebServerInstanceType
       UserData:
-        Fn::Base64: !Sub |
+        Fn::Base64: |
           #!/bin/bash -
+          # from stack asg_with_update_policy_2017.yaml
           yum -y install httpd
           cat > /var/www/html/index.html <<EOF
           <!DOCTYPE html>
           <html>
           <body>
-          <h1>United States Priorities, 2017</h1>
-          <li>Economy and Taxation</li>
-          <li>Border Security (a wall and "extreme vetting")</li>
-          <li>Eliminating Abortion Rights</li>
+          <h1>Testing</h1>
           </body>
           </html>
           EOF
@@ -109,7 +107,7 @@ Resources:
   WebServerAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      DesiredCapacity: 4
+      DesiredCapacity: 2
       # HealthCheckGracePeriod allows "x" seconds before the 
       # HealthCheck begins checking the health of a given instance
       HealthCheckGracePeriod: 60
@@ -117,7 +115,7 @@ Resources:
       LaunchConfigurationName: !Ref WebServerLaunchConfig
       LoadBalancerNames:
         - !Ref WebServerELB
-      MaxSize: 4
+      MaxSize: 2
       MinSize: 2
       VPCZoneIdentifier:
         - !Ref PublicSubnet
@@ -167,4 +165,10 @@ Resources:
         - !Ref WebServerELBSecurityGroup
       Subnets:
         - !Ref PublicSubnet
-Outputs: {}
+Outputs:
+  WebServerELBDNSName:
+    Description: The DNSName of the WebServerELB
+    Value:
+      Fn::GetAtt:
+      - WebServerELB
+      - DNSName
