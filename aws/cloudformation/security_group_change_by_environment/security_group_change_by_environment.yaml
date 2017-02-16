@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create stack where a security group has different rules based on environment
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      # note: you probably _don't_ want to the names below
+      # for your own naming
+      - production
+      - qa
+      - development
+Conditions:
+  IsProduction:
+    Fn::Equals:
+    - Ref: Environment
+    - production
+Mappings: {}
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  # note: the ELB Security Group is a "Null" group
+  # simply responsible for allowing an ELB to be created
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ELB Security Group
+      VpcId: !Ref VPC
+      # if "production" - only allow in traffic from particular IP addresses
+      SecurityGroupIngress:
+        !If
+        - IsProduction
+        # these are "IsProduction" true rules
+        - - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 10.0.0.0/24
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 5.27.19.77/32
+        # these are "IsProduction" false rules
+        - - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 10.0.0.0/24
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 10.0.0.0/24
+Outputs: {}
