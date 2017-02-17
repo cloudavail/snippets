@@ -1,0 +1,44 @@
+---
+Description: creates an CloudFront Distribition with two buckets.
+Mappings: {}
+Outputs: {}
+Parameters: {}
+Resources:
+  Bucket01:
+    Type: AWS::S3::Bucket
+  Bucket02:
+    Type: AWS::S3::Bucket
+  CloudFrontDistribition:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        CacheBehaviors:
+          - AllowedMethods:
+              - GET
+              - HEAD
+            ForwardedValues:
+              QueryString: false
+            PathPattern: /images
+            TargetOriginId: Bucket02
+            ViewerProtocolPolicy: allow-all
+        # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudfront-defaultcachebehavior.html
+        # this DefaultCacheBehavior sends all requests to Bucket01 by default
+        # this is described as "Path Pattern: Default (*)"
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+          TargetOriginId: Bucket01
+          ViewerProtocolPolicy: allow-all
+        Enabled: true
+        Origins:
+          - DomainName: !GetAtt [Bucket01, DomainName]
+            # Id: is arbitrary
+            Id: Bucket01
+            S3OriginConfig: {}
+          - DomainName: !GetAtt [Bucket02, DomainName]
+            # Id: is arbitrary
+            Id: Bucket02
+            S3OriginConfig: {}
