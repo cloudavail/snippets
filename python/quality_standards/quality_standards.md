@@ -1,8 +1,11 @@
-# Code Standard and Quality
+# Code Standards and Quality
 ## Prototype
 - A coding standard has been selected and is adhered to. Advised standards are below:
   - python: pep-8, https://www.python.org/dev/peps/pep-0008/
   - shell script: Shell Style Guide, https://google.github.io/styleguide/shell.xml
+- If a script supporting functions, program flow should be readable by:
+  - following script execution, reading function names and, if needed, reviewing comments about functions
+
 
 # Configuration: Arguments
 ## Prototype
