@@ -1,0 +1,369 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an EC2 instance which is only allowed egress to an S3 bucket through a VPC Endpoint.
+Parameters:
+  LogWriterServerInstanceType:
+    Description: LogWriter Server EC2 Instance Type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+  LogWriterServerKeyName:
+    Default: test
+    Description: LogWriter Server KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+  SquidServerInstanceType:
+    Description: Squid Server EC2 Instance Type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+  SquidServerKeyName:
+    Default: test
+    Description: Squid Server KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    # AMI ID source
+    # https://aws.amazon.com/marketplace/fulfillment?productId=b7ee8a69-ee97-4a49-9e68-afaee216db2e
+    us-east-1:
+      '64': ami-6d1c2007
+    us-west-1:
+      '64': ami-af4333cf
+    us-west-2:
+      '64': ami-d2c924b2
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+  SquidServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Squid Server ELB Security Group
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 3128
+        ToPort: 3128
+        CidrIp: 10.0.0.0/24
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 3128
+        ToPort: 3128
+        CidrIp: 10.0.0.0/24
+  SquidServerELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 60
+      CrossZone: true
+      HealthCheck:
+        Target: TCP:3128
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+      Listeners:
+      - InstancePort: 3128
+        InstanceProtocol: TCP
+        LoadBalancerPort: 3128
+        Protocol: TCP
+      Scheme: internal
+      SecurityGroups:
+      - Ref: SquidServerELBSecurityGroup
+      Subnets:
+      - Ref: PublicSubnet
+  SquidServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: SquidServerInstanceType
+          - Arch
+      InstanceType: !Ref SquidServerInstanceType
+      KeyName: !Ref SquidServerKeyName
+      SecurityGroups:
+      - Ref: SquidServerSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash -
+            yum -y install squid
+            mv /etc/squid/squid.conf /etc/squid/squid.conf.bak
+            cat > /etc/squid/squid.conf <<EOF
+            # define the port on which squid will listen
+            http_port 3128
+            # acl for destination
+            acl internet dst all
+            http_access allow internet
+            # acl for source
+            acl localnet src 10.0.0.0/255.255.255.0
+            # acl allowing to any site on any network
+            http_access allow localnet
+            EOF
+            systemctl restart squid
+  SquidServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 3128
+        ToPort: 3128
+        SourceSecurityGroupId: !Ref SquidServerELBSecurityGroup
+      # if needed to remove the default "allow all" egress rule
+      # from: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+  SquidServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref SquidServerLaunchConfig
+      LoadBalancerNames: 
+      - Ref: SquidServerELB
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+      - Ref: PublicSubnet
+      Tags:
+      - Key: Name
+        Value: SquidServer
+        PropagateAtLaunch: true
+  LogWriterServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - Ref: LogWriterServerRole
+  LogWriterServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+  LogWriterServerS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+      - Ref: LogWriterServerRole
+      PolicyName: LogWriterServerS3Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: !Sub arn:aws:s3:::${S3Bucket}/*
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: !Sub arn:aws:s3:::${S3Bucket}
+  LogWriterServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn:
+      # these resources must be built for the LogWriter system to access the Public Internet
+      - SquidServerELBSecurityGroup
+      - SquidServerELB
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: LogWriterServerInstanceType
+          - Arch
+      IamInstanceProfile: !Ref LogWriterServerInstanceProfile
+      InstanceType: !Ref LogWriterServerInstanceType
+      KeyName: !Ref LogWriterServerKeyName
+      SecurityGroups:
+      - Ref: LogWriterServerSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub
+          - |
+            #!/bin/bash -
+            export http_proxy="http://${SquidServerDNSName}:3128"
+            export https_proxy="http://${SquidServerDNSName}:3128"
+            # from: curl -L https://toolbelt.treasuredata.com/sh/install-redhat-td-agent2.sh | sh
+            rpm --import https://packages.treasuredata.com/GPG-KEY-td-agent
+            cat > /etc/yum.repos.d/td.repo <<EOF
+            [treasuredata]
+            name=TreasureData
+            baseurl=http://packages.treasuredata.com/2/redhat/\$releasever/\$basearch
+            gpgcheck=1
+            gpgkey=https://packages.treasuredata.com/GPG-KEY-td-agent
+            EOF
+            yum check-update
+            yum install -y td-agent
+            cat > /etc/sysconfig/td-agent<<EOF
+            # setting TD_AGENT_USER and TD_AGENT_GROUP
+            # makes possible accessing log files owned by root, such as:
+            # /var/log/messages and /var/log/secure
+            TD_AGENT_USER=root
+            TD_AGENT_GROUP=root
+            EOF
+            mkdir -p /etc/td-agent/config.d/source.d /etc/td-agent/config.d/match.d
+            cat > /etc/td-agent/td-agent.conf <<EOF
+            @include /etc/td-agent/config.d/source.d/*.conf
+            @include /etc/td-agent/config.d/match.d/*.conf
+            EOF
+            cat > /etc/td-agent/config.d/source.d/system_logs.conf <<EOF
+            <source>
+              @type tail
+              format syslog
+              path /var/log/auth.log, /var/log/faillog, /var/log/messages, /var/log/secure, /var/log/syslog
+              pos_file /var/log/td-agent/system_logs.pos
+              read_from_head true
+              tag system_logs.*
+            </source>
+            EOF
+            cat > /etc/td-agent/config.d/match.d/match_s3.conf <<EOF
+            <match **>
+              @type s3
+              # aws_key_id: aws_key_id should be gotten via Instance Profile
+              # aws_sec_key: aws_sec_key should be gotten via Instance Profile
+              s3_bucket ${S3Bucket}
+              s3_region ${AWS::Region}
+              buffer_path /var/log/td-agent/s3_buffer_path/
+              proxy_uri http://${SquidServerDNSName}:3128
+              format json
+              # flush_interval is default 60s - but want to make explicit
+              flush_interval 60s
+              flush_at_shutdown true
+              utc
+            </match>
+            EOF
+            systemctl restart td-agent
+          - SquidServerDNSName:
+              Fn::GetAtt:
+                - SquidServerELB
+                - DNSName
+
+  LogWriterServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      # if needed to remove the default "allow all" egress rule
+      # from: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 3128
+        ToPort: 3128
+        # this would be better done if allowing egress to _only_
+        # the SquidServerELBSecurityGroup
+        CidrIp: 10.0.0.0/24
+  LogWriterServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref LogWriterServerLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+      - Ref: PublicSubnet
+      Tags:
+      - Key: Name
+        Value: LogWriterServer
+        PropagateAtLaunch: true
+
+  VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - '*'
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket}/*
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - '*'
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket}
+      RouteTableIds:
+        - !Ref PublicInternetRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
+  S3Bucket:
+    Type: AWS::S3::Bucket
+Outputs:
+  S3Bucket:
+    Description: Name of the S3Bucket
+    Value: !Ref S3Bucket
+  SquidServerELB:
+    Description: URL of the SquidServerELB
+    Value: !GetAtt
+      - SquidServerELB
+      - DNSName
