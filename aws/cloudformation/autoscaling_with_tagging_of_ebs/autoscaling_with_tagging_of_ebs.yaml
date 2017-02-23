@@ -1,0 +1,80 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an Auto Scaling Group that automatically tags EBS Volumes that are attached to EC2 Instances
+Parameters:
+  ServerInstanceType:
+    Description: Server EC2 instance type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    # Ubuntu AMIs are available from:
+    # https://cloud-images.ubuntu.com/locator/ec2/
+    us-east-1:
+      '64': ami-f4cc1de2
+    us-west-1:
+      '64': aami-16efb076
+    us-west-2:
+      '64': ami-a58d0dc5
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId:
+        Ref: VPC
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: false
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: ServerInstanceType
+          - Arch
+      SecurityGroups:
+      - Ref: ServerSecurityGroup
+      InstanceType: !Ref ServerInstanceType
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Server Security Group
+      VpcId: !Ref VPC
+  ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Ref: PrivateSubnet
+      LaunchConfigurationName: !Ref ServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      Tags:
+        Key: Name
+        # below is wishful thinking, perhaps
+        Value: AutoScalingServerWithTaggedEBS
+        PropagateAtLaunch: true
+Outputs: {}
