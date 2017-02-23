@@ -73,8 +73,8 @@ Resources:
       MaxSize: 1
       DesiredCapacity: 1
       Tags:
-        Key: Name
-        # below is wishful thinking, perhaps
-        Value: AutoScalingServerWithTaggedEBS
-        PropagateAtLaunch: true
+        - Key: Name
+          # below is wishful thinking, perhaps
+          Value: AutoScalingServerWithTaggedEBS
+          PropagateAtLaunch: true
 Outputs: {}
