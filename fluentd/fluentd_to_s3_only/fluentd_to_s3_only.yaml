@@ -1,0 +1,266 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an EC2 instance which is only allowed egress to an S3 bucket through a VPC Endpoint.
+Parameters:
+  FluentdServerInstanceType:
+    Description: Fluentd Server EC2 Instance Type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+  FluentdServerKeyName:
+    Default: test
+    Description: Fluentd Server KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    # AMI ID source
+    # https://aws.amazon.com/marketplace/fulfillment?productId=b7ee8a69-ee97-4a49-9e68-afaee216db2e
+    us-east-1:
+      '64': ami-6d1c2007
+    us-west-1:
+      '64': ami-af4333cf
+    us-west-2:
+      '64': ami-d2c924b2
+  AWSRegion2PrefixListId:
+    # to get prefix lists by region, run
+    # aws ec2 describe-prefix-lists --region $region_name
+    ap-south-1:
+      s3: pl-78a54011
+    eu-west-2:
+      s3: pl-7ca54015
+    eu-west-1:
+      s3: pl-6da54004
+    ap-northeast-2:
+      s3: pl-78a54011
+    ap-northeast-1:
+      s3: pl-61a54008
+    sa-east-1:
+      s3: pl-6aa54003
+    ca-central-1:
+      s3: pl-7da54014
+    ap-southeast-1:
+      s3: pl-6fa54006
+    ap-southeast-2:
+      s3: pl-6ca54005
+    eu-central-1:
+      s3: pl-6ea54007
+    us-east-1:
+      s3: pl-63a5400a
+    us-east-2:
+      s3: pl-7ba54012
+    us-west-1:
+      s3: pl-6ba54002
+    us-west-2:
+      s3: pl-68a54001
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+  FluentdServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - Ref: FluentdServerRole
+  FluentdServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+  FluentdServerS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+      - Ref: FluentdServerRole
+      PolicyName: FluentdServerS3Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: !Sub arn:aws:s3:::${FluentdS3Bucket}/*
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: !Sub arn:aws:s3:::${FluentdS3Bucket}
+  FluentdServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: FluentdServerInstanceType
+          - Arch
+      IamInstanceProfile: !Ref FluentdServerInstanceProfile
+      InstanceType: !Ref FluentdServerInstanceType
+      KeyName: !Ref FluentdServerKeyName
+      SecurityGroups:
+      - Ref: FluentdServerSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -
+            # from: curl -L https://toolbelt.treasuredata.com/sh/install-redhat-td-agent2.sh | sh
+            rpm --import https://packages.treasuredata.com/GPG-KEY-td-agent
+            cat > /etc/yum.repos.d/td.repo <<EOF
+            [treasuredata]
+            name=TreasureData
+            baseurl=http://packages.treasuredata.com/2/redhat/\$releasever/\$basearch
+            gpgcheck=1
+            gpgkey=https://packages.treasuredata.com/GPG-KEY-td-agent
+            EOF
+            yum check-update
+            yum install -y td-agent
+            cat > /etc/sysconfig/td-agent<<EOF
+            # setting TD_AGENT_USER and TD_AGENT_GROUP
+            # makes possible accessing log files owned by root, such as:
+            # /var/log/messages and /var/log/secure
+            TD_AGENT_USER=root
+            TD_AGENT_GROUP=root
+            EOF
+            mkdir -p /etc/td-agent/config.d/source.d /etc/td-agent/config.d/match.d
+            cat > /etc/td-agent/td-agent.conf <<EOF
+            @include /etc/td-agent/config.d/source.d/*.conf
+            @include /etc/td-agent/config.d/match.d/*.conf
+            EOF
+            cat > /etc/td-agent/config.d/source.d/system_logs.conf <<EOF
+            <source>
+              @type tail
+              format syslog
+              path /var/log/auth.log, /var/log/faillog, /var/log/messages, /var/log/secure, /var/log/syslog
+              pos_file /var/log/td-agent/system_logs.pos
+              read_from_head true
+              tag system_logs.*
+            </source>
+            EOF
+            cat > /etc/td-agent/config.d/match.d/match_s3.conf <<EOF
+            <match **>
+              @type s3
+              # aws_key_id: aws_key_id should be gotten via Instance Profile
+              # aws_sec_key: aws_sec_key should be gotten via Instance Profile
+              s3_bucket ${FluentdS3Bucket}
+              s3_region ${AWS::Region}
+              buffer_path /var/log/td-agent/s3_buffer_path/
+              format json
+              # flush_interval is default 60s - but want to make explicit
+              flush_interval 60s
+              flush_at_shutdown true
+              utc
+            </match>
+            EOF
+            systemctl restart td-agent
+  FluentdServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      # these rules should be removed once the td-agent is succesfully installed
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        DestinationPrefixListId:
+          Fn::FindInMap:
+          - AWSRegion2PrefixListId
+          - Ref: AWS::Region
+          - s3
+  FluentdServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref FluentdServerLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+      - Ref: PublicSubnet
+      Tags:
+      - Key: Name
+        Value: FluentdServer
+        PropagateAtLaunch: true
+  VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - '*'
+            Resource:
+              - !Sub arn:aws:s3:::${FluentdS3Bucket}/*
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - '*'
+            Resource:
+              - !Sub arn:aws:s3:::${FluentdS3Bucket}
+      RouteTableIds:
+        - !Ref PublicInternetRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
+  FluentdS3Bucket:
+    Type: AWS::S3::Bucket
+Outputs:
+  FluentdS3Bucket:
+    Description: Name of the FluentdS3Bucket
+    Value: !Ref FluentdS3Bucket
