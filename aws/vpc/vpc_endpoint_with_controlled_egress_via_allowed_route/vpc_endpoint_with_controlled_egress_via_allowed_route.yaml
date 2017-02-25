@@ -1,0 +1,187 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an EC2 instance which is only allowed egress to an S3 bucket through a VPC Endpoint.
+Parameters:
+  ServerInstanceType:
+    Description: Server EC2 Instance Type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+  ServerKeyName:
+    Default: test
+    Description: Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+  AWSRegion2PrefixListId:
+    # to get prefix lists by region, run
+    # aws ec2 describe-prefix-lists --region $region_name
+    us-west-1:
+      s3: pl-6ba54002
+    us-west-2:
+      s3: pl-68a54001
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    # AMI ID source
+    # https://aws.amazon.com/marketplace/fulfillment?productId=b7ee8a69-ee97-4a49-9e68-afaee216db2e
+    us-east-1:
+      '64': ami-6d1c2007
+    us-west-1:
+      '64': ami-af4333cf
+    us-west-2:
+      '64': ami-d2c924b2
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+  ServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - Ref: ServerRole
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+  ServerS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+      - Ref: ServerRole
+      PolicyName: ServerS3Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: !Sub arn:aws:s3:::${AllowedS3Bucket}/*
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource: !Sub arn:aws:s3:::${AllowedS3Bucket}
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: ServerInstanceType
+          - Arch
+      IamInstanceProfile: !Ref ServerInstanceProfile
+      InstanceType: !Ref ServerInstanceType
+      KeyName: !Ref ServerKeyName
+      SecurityGroups:
+      - Ref: ServerSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash -
+            # yum -y install epel-release
+            # yum -y install awscli
+            # yum -y install tcpdump
+
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      # if needed to remove the default "allow all" egress rule
+      # from: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        DestinationPrefixListId:
+          Fn::FindInMap:
+          - AWSRegion2PrefixListId
+          - Ref: AWS::Region
+          - s3
+  ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Ref: PublicSubnet
+      LaunchConfigurationName:
+        Ref: ServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+  VPCEndpoint:
+  # Ref: returns vpce-a123d0d1
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - '*'
+            Resource:
+              - !Sub arn:aws:s3:::${AllowedS3Bucket}/*
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - '*'
+            Resource:
+              - !Sub arn:aws:s3:::${AllowedS3Bucket}
+      RouteTableIds:
+        - !Ref PublicInternetRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
+  AllowedS3Bucket:
+    Type: AWS::S3::Bucket
+  DeniedS3Bucket:
+    Type: AWS::S3::Bucket
+Outputs: {}
