@@ -1,0 +1,9 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/xenial64"
+  config.vm.provision "shell", path: "./initialize_django.sh"
+  config.vm.network "private_network", ip: "192.168.50.4"
+
+end
