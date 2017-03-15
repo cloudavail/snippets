@@ -1,0 +1,6 @@
+[
+  {
+    "ParameterKey": "AZsSupportingSubnets",
+    "ParameterValue": "ca-central-1a, ca-central-1b, unsupported, unsupported"
+  }
+]

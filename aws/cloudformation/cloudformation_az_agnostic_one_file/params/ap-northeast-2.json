@@ -1,0 +1,6 @@
+[
+  {
+    "ParameterKey": "AZsSupportingSubnets",
+    "ParameterValue": "ap-northeast-2a, ap-northeast-2c, unsupported, unsupported"
+  }
+]

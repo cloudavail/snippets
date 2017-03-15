@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a simple, multiple AZ standard AWS VPC
+
+Parameters:
+  AZsSupportingSubnets:
+    Description: Availability Zones that Support Subnets
+    Type: CommaDelimitedList
+
+Conditions:
+  CreateSubnetAZ01:
+    Fn::Not:
+      - Fn::Equals:
+        - Fn::Select:
+          - 0
+          - !Ref AZsSupportingSubnets
+        - unsupported
+  CreateSubnetAZ02:
+    Fn::Not:
+      - Fn::Equals:
+        - Fn::Select:
+          - 1
+          - !Ref AZsSupportingSubnets
+        - unsupported
+  CreateSubnetAZ03:
+    Fn::Not:
+      - Fn::Equals:
+        - Fn::Select:
+          - 2
+          - !Ref AZsSupportingSubnets
+        - unsupported
+  CreateSubnetAZ04:
+    Fn::Not:
+      - Fn::Equals:
+        - Fn::Select:
+          - 3
+          - !Ref AZsSupportingSubnets
+        - unsupported
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/22
+  Subnet01:
+    Condition: CreateSubnetAZ01
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !Ref AZsSupportingSubnets ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+  Subnet02:
+    Condition: CreateSubnetAZ02
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !Ref AZsSupportingSubnets ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+  Subnet03:
+    Condition: CreateSubnetAZ03
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 2, !Ref AZsSupportingSubnets ]
+      CidrBlock: 10.0.1.0/25
+      VpcId: !Ref VPC
+  Subnet04:
+    Condition: CreateSubnetAZ04
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 3, !Ref AZsSupportingSubnets ]
+      CidrBlock: 10.0.1.128/25
+      VpcId: !Ref VPC
+
+Outputs: {}

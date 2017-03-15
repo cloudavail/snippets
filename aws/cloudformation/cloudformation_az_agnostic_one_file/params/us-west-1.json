@@ -1,0 +1,6 @@
+[
+  {
+    "ParameterKey": "AZsSupportingSubnets",
+    "ParameterValue": "us-west-1b, us-west-1c, unsupported, unsupported"
+  }
+]
