@@ -1,0 +1,49 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+
+  IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  IAMPolicy:
+  # creates an IAM "Inline Policy"
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: IAMPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement: 
+          - Effect: Allow
+            Action:
+              - rds:CreateDBInstance
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:test_policy*
+      Roles:
+        - !Ref IAMRole
+
+  IAMManagedPolicy:
+  # creates an IAM "Managed Policy"
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: IAMManagedPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement: 
+          - Effect: Allow
+            Action:
+              - rds:CreateDBInstance
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:test_managed_policy*
+      Roles:
+        - !Ref IAMRole
