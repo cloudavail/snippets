@@ -1,0 +1,6 @@
+---
+- name: install apache2 on localhost
+  hosts: localhost
+  tasks:
+  - name: install apache2 on localhost
+    yum: name=httpd state=latest

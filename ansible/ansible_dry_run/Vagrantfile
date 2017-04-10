@@ -1,0 +1,9 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "bento/centos-7.2"
+  config.vm.hostname = 'ansible'
+  config.vm.provision(:shell, path: './ansible_dry_run.sh')
+
+end
