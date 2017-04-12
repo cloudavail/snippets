@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: create an encrypted RDS instance.
+
+Parameters:
+
+  RDSInstanceType:
+    Description: RDS InstanceType
+    Type: String
+    Default: db.t2.large
+    AllowedValues:
+    - db.t2.large
+    ConstraintDescription: must be a valid RDS Instance Type
+  RDSMasterUserPassword:
+    Description: RDS MasterUserPassword
+    Type: String
+
+Mappings: {}
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/25
+      AvailabilityZone: 
+        Fn::Select: 
+          - 0
+          - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/25
+      AvailabilityZone: 
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs: ""
+      VpcId: !Ref VPC
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: dbClient Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 3306
+        IpProtocol: tcp
+        ToPort: 3306
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      SubnetIds:
+      - Ref: PublicSubnet01
+      - Ref: PublicSubnet02
+      DBSubnetGroupDescription: Subnets for RDS
+  RDSDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 40
+      BackupRetentionPeriod: 0
+      DBInstanceClass: !Ref RDSInstanceType
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      Engine: MySQL
+      MasterUsername: test
+      MasterUserPassword: !Ref RDSMasterUserPassword
+      PubliclyAccessible: true
+      StorageType: gp2
+      VPCSecurityGroups:
+      - Ref: RDSSecurityGroup
+
+Outputs:
+  RDSDBInstanceResourceId:
+    Description: RDSDBInstance Resource Id
+    Value: !Ref RDSDBInstance
