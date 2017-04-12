@@ -1,0 +1,21 @@
+---
+Description: creates an IAM user with s3:* access to an S3 Bucket.
+
+Mappings: {}
+
+Resources:
+  IAMuser:
+    Type: AWS::IAM::User
+    Properties: 
+      Policies:
+      - PolicyName: s3bucketfullaccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:*
+            Resource:
+            - !ImportValue ExportedS3Bucket-S3BucketName
+
+Outputs: {}

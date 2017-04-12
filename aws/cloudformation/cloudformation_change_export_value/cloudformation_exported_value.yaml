@@ -1,0 +1,24 @@
+---
+Description: creates an S3 Bucket with a defined name. Exports this S3 Bucket name.
+
+Parameters:
+  S3BucketName:
+    Description: Name of the S3 Bucket
+    Type: String
+
+Mappings: {}
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+
+Outputs:
+  S3BucketARN:
+    Description: Name of the S3 Bucket
+    Value: !Sub arn:aws:s3:::/${S3Bucket}
+    Export:
+      # note that best practice is typically to export ${AWS::StackName}-ResourceName
+      # avoiding this here to ensure predictability of import in cloudformation_import_value.yaml file
+      Name: !Sub ExportedS3Bucket-S3BucketName
