@@ -1,0 +1,12 @@
+# objective: create a vagrant instance that runs ponysay
+# mostly for tormenting my favorite co-worker - https://twitter.com/oley
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/xenial64"
+  config.vm.hostname = "ponysay"
+  config.vm.provision "shell", path: "./install_ponysay.sh"
+
+end
