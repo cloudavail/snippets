@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Create an EFS File System for Jenkins.
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select: 
+          - 0
+          - !GetAZs ""
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select: 
+          - 1
+          - !GetAZs ""
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties: {}
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EFS Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 2049
+        ToPort: 2049
+        SourceSecurityGroupId: !Ref EFSClientSecurityGroup
+
+  EFSClientSecurityGroup:
+    # any clients that require ingress to the EFSFileSystem should be a member of this EC2::SecurityGroup
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EFS Client Security Group
+      VpcId: !Ref VPC
+
+  EFSMountTargetSubnet01:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SecurityGroups:
+      - Ref: EFSSecurityGroup
+      SubnetId: !Ref PublicSubnet01
+
+  EFSMountTargetSubnet02:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SecurityGroups:
+      - Ref: EFSSecurityGroup
+      SubnetId: !Ref PublicSubnet02
+
+Outputs:
+
+  VPCId:
+    Description: VPCId
+    Export:
+      Name: JenkinsEFS-VPCId
+    Value: !Ref VPC
+
+  PublicSubnet01Id:
+    Description: PublicSubnet01 Subnet Id
+    Export:
+      Name: JenkinsEFS-PublicSubnet01Id
+    Value: !Ref PublicSubnet01
+
+  PublicSubnet02Id:
+    Description: PublicSubnet02 Subnet Id
+    Export:
+      Name: JenkinsEFS-PublicSubnet02Id
+    Value: !Ref PublicSubnet02
+
+  EFSClientSecurityGroupId:
+    Description: EFSClientSecurityGroup Security Group Id
+    Export:
+      Name: JenkinsEFS-EFSClientSecurityGroupId
+    Value: !Ref EFSClientSecurityGroup
+
+  EFSFileSystemId:
+    Description: The EFSFileSystem ID
+    Export:
+      Name: JenkinsEFS-EFSFileSystemId
+    Value: !Ref EFSFileSystem

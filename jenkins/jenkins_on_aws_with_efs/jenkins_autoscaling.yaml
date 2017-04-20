@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Create a Jenkins Auto Scaling Group. Note that this group should never be more than 1 instance.
+
+Parameters:
+
+  JenkinsServerInstanceType:
+    Description: Jenkins Server Instance Type
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+    - t2.medium
+    ConstraintDescription: must be an t2.medium
+
+  JenkinsServerKeyName:
+    Description: Jenkins Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.medium:
+      Arch: '64'
+  AWSRegionArch2AMI:
+    # using Ubuntu AMIs from https://cloud-images.ubuntu.com/locator/ec2/
+    # search string for 16.04 LTS: 16.04 lts hvm:ebs-ssd
+    us-east-1:
+      '64': ami-80861296
+    us-west-1:
+      '64': ami-2afbde4a
+    us-west-2:
+      '64': ami-efd0428f
+
+Resources:
+
+  JenkinsELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Jenkins ELB Security Group
+      VpcId: !ImportValue JenkinsEFS-VPCId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+
+  JenkinsELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+      - !ImportValue JenkinsEFS-PublicSubnet01Id
+      - !ImportValue JenkinsEFS-PublicSubnet02Id
+      SecurityGroups:
+      - Ref: JenkinsELBSecurityGroup
+      HealthCheck:
+        Target: TCP:8080
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+      Listeners:
+      - LoadBalancerPort: 8080
+        InstancePort: 8080
+        Protocol: HTTP
+      CrossZone: true
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 60
+
+  JenkinsServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Jenkins Server Security Group
+      VpcId: !ImportValue JenkinsEFS-VPCId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        SourceSecurityGroupId: !Ref JenkinsELBSecurityGroup
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+
+  JenkinsServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: JenkinsServerInstanceType
+          - Arch
+      InstanceType: !Ref JenkinsServerInstanceType
+      KeyName: !Ref JenkinsServerKeyName
+      SecurityGroups:
+      - !Ref JenkinsServerSecurityGroup
+      - !ImportValue JenkinsEFS-EFSClientSecurityGroupId
+      UserData:
+        Fn::Base64:
+          !Sub
+          - |
+            #!/bin/bash -
+            availability_zone=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+            region=${AWS::Region}
+            efs_id=${EFSFileSystemId}
+            # mount efs: http://docs.aws.amazon.com/efs/latest/ug/mounting-fs.html
+            apt -y update
+            apt -y install nfs-common
+            mkdir -p /efs/jenkins
+            # creating a symlink prior to install means jenkins will install files in /efs/jenkins
+            # on first time install
+            ln -s /efs/jenkins /var/lib/jenkins
+            # from https://wiki.jenkins-ci.org/display/JENKINS/Installing+Jenkins+on+Ubuntu
+            mount -t nfs4 -o nfsvers=4.1 $availability_zone.$efs_id.efs.$region.amazonaws.com:/ /efs
+            wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | sudo apt-key add -
+            sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+            apt -y update
+            apt -y install jenkins
+          - EFSFileSystemId:
+              !ImportValue JenkinsEFS-EFSFileSystemId
+
+  JenkinsServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref JenkinsServerLaunchConfig
+      LoadBalancerNames:
+      - !Ref JenkinsELB
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+      - !ImportValue JenkinsEFS-PublicSubnet01Id
+      - !ImportValue JenkinsEFS-PublicSubnet02Id
+
+Outputs: {}
