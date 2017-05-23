@@ -2,8 +2,7 @@
 
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: -| Create a VPC containing two subnets and an Auto Scaling Group with Internet access.
-  Most importantly, utilize a Fn::Transform to include a file.
+Description: Create a VPC containing two subnets and an Auto Scaling Group with Internet access. Most importantly, utilize a Fn::Transform to include a file.
 
 Parameters:
 
