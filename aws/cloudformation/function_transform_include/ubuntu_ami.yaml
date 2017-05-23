@@ -1,0 +1,11 @@
+---
+
+AWSRegionArch2AMI:
+# https://cloud-images.ubuntu.com/locator/
+# search on: amazon 16.04 hvm-ssd
+  us-east-1:
+    '64': ami-ddf13fb0
+  us-west-1:
+    '64': ami-b20542d2
+  us-west-2:
+    '64': ami-b9ff39d9
