@@ -26,6 +26,7 @@ Mappings:
     # aws ec2 describe-images --owners amazon --filters Name=name,Values=*amazon-ecs-optimized --region us-west-2 --output table
     us-west-2:
       64HVM: ami-62d35c02
+
 Resources:
 
   VPC:
@@ -63,6 +64,7 @@ Resources:
       AvailabilityZone: !Select [ 0, !GetAZs "" ]
       CidrBlock: 10.0.0.0/25
       VpcId: !Ref VPC
+
   PublicSubnet02:
     Type: AWS::EC2::Subnet
     Properties:
@@ -75,6 +77,7 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet01
+
   PublicSubnet02RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -116,6 +119,7 @@ Resources:
           CidrIp: 0.0.0.0/0
 
   ecsServiceIAMPolicy:
+    # will be used by ECS services to register/deregister services from ELBs
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: ecsServiceIAMPolicy
@@ -148,6 +152,7 @@ Resources:
 
   ecsCluster:
     Type: AWS::ECS::Cluster
+
   containerInstanceECSRole:
     Type: AWS::IAM::Role
     Properties:
@@ -181,6 +186,7 @@ Resources:
           FromPort: 0
           ToPort: 65535
           CidrIp: 0.0.0.0/0
+
   containerInstancePolicy:
     Type: AWS::IAM::Policy
     Properties:
