@@ -1,0 +1,224 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for an ECS Cluster and Associated Resources.
+
+Parameters:
+
+  containerInstanceInstanceType:
+    Description: container Instance Instance Type
+    Type: String
+    Default: t2.micro
+
+  keyName:
+    Description: container Instance Instance Type
+    Type: String
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.micro:
+      Arch: 64HVM
+    t2.small:
+      Arch: 64HVM
+
+  AWSRegionArch2AMI:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI_launch_latest.html
+    # aws ec2 describe-images --owners amazon --filters Name=name,Values=*amazon-ecs-optimized --region us-west-2 --output table
+    us-west-2:
+      64HVM: ami-62d35c02
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - InternetGateway
+      - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ecsServiceIAMPolicy:
+    # will be used by ECS services to register/deregister services from ELBs
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ecsServiceIAMPolicy
+      Roles:
+        - !Ref ecsServiceIAMRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:Describe*
+              - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+              - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+              - ec2:Describe*
+              - ec2:AuthorizeSecurityGroupIngress
+            Resource:
+              - '*'
+
+  ecsServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+
+  ecsCluster:
+    Type: AWS::ECS::Cluster
+
+  containerInstanceECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+
+  containerInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: container Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  containerInstancePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+        - !Ref containerInstanceECSRole
+      PolicyName: containerInstancePolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecs:CreateCluster
+              - ecs:DeregisterContainerInstance
+              - ecs:DiscoverPollEndpoint
+              - ecs:Poll
+              - ecs:RegisterContainerInstance
+              - ecs:Submit*
+            Resource:
+              - '*'
+
+  containerInstanceInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref containerInstanceECSRole
+
+  containerInstanceAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      LaunchConfigurationName: !Ref containerInstanceLaunchConfig
+      MinSize: 2
+      MaxSize: 2
+      DesiredCapacity: 2
+      Tags:
+        - Key: Name
+          Value: containerInstance
+          PropagateAtLaunch: true
+
+  containerInstanceLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: 120
+      IamInstanceProfile: !Ref containerInstanceInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+          - AWSRegionArch2AMI
+          - Ref: AWS::Region
+          - Fn::FindInMap:
+            - AWSInstanceType2Arch
+            - Ref: containerInstanceInstanceType
+            - Arch
+      InstanceType: !Ref containerInstanceInstanceType
+      KeyName: !Ref keyName
+      SecurityGroups:
+        - !Ref containerInstanceSecurityGroup
+      UserData:
+        Fn::Base64: 
+          !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ecsCluster}
+            EOF
+
+Outputs: {}
