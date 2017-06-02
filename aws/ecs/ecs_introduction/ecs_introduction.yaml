@@ -10,8 +10,8 @@ Parameters:
     Default: t2.micro
 
   keyName:
-    Description: container Instance Instance Type
-    Type: String
+    Description: ECS keypair
+    Type: AWS::EC2::KeyPair::KeyName
 
 Mappings:
 
