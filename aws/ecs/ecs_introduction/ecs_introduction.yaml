@@ -118,26 +118,6 @@ Resources:
           ToPort: 80
           CidrIp: 0.0.0.0/0
 
-  ecsServiceIAMPolicy:
-    # will be used by ECS services to register/deregister services from ELBs
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ecsServiceIAMPolicy
-      Roles:
-        - !Ref ecsServiceIAMRole
-      PolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Action:
-              - elasticloadbalancing:Describe*
-              - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
-              - elasticloadbalancing:RegisterInstancesWithLoadBalancer
-              - ec2:Describe*
-              - ec2:AuthorizeSecurityGroupIngress
-            Resource:
-              - '*'
-
   ecsServiceIAMRole:
     Type: AWS::IAM::Role
     Properties:
@@ -149,6 +129,8 @@ Resources:
             Principal:
               Service: ecs.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
 
   ecsCluster:
     Type: AWS::ECS::Cluster
@@ -165,6 +147,8 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
       Path: /
 
   containerInstanceSecurityGroup:
@@ -186,26 +170,6 @@ Resources:
           FromPort: 0
           ToPort: 65535
           CidrIp: 0.0.0.0/0
-
-  containerInstancePolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      Roles:
-        - !Ref containerInstanceECSRole
-      PolicyName: containerInstancePolicy
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - ecs:CreateCluster
-              - ecs:DeregisterContainerInstance
-              - ecs:DiscoverPollEndpoint
-              - ecs:Poll
-              - ecs:RegisterContainerInstance
-              - ecs:Submit*
-            Resource:
-              - '*'
 
   containerInstanceInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -247,7 +211,7 @@ Resources:
       SecurityGroups:
         - !Ref containerInstanceSecurityGroup
       UserData:
-        Fn::Base64: 
+        Fn::Base64:
           !Sub |
             #!/bin/bash
             cat > /etc/ecs/ecs.config <<EOF
