@@ -128,7 +128,7 @@ Resources:
       AllocatedStorage: 25
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: 0
+      # BackupRetentionPeriod should not be set for Read Replicas
       DBInstanceClass: !Ref DBInstanceInstanceClass
       DBSubnetGroupName: !Ref DBInstanceSubnetGroup
       Engine: MySQL
