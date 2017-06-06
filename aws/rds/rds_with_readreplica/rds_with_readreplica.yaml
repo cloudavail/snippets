@@ -1,0 +1,144 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Create a VPC containing both and RDS database and an RDS Read Replica
+
+Parameters:
+
+  DBInstanceInstanceClass:
+    AllowedValues:
+      - db.t2.micro
+    Default: db.t2.micro
+    Description: DB Instance InstanceClass
+    Type: String
+
+  DBInstanceMasterUserPassword:
+    Description: DB Instance MasterUserPassword
+    NoEcho: true
+    Type: String
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # Two subnets in different AZs are required because a
+  # DBSubnetGroup requires two subnets in unique AZs
+  # first subnet - this needs to be in "AZ x"
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: !Ref AWS::Region
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  # second subnet - this needs to be in "AZ y"
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - 1
+        - Fn::GetAZs: !Ref AWS::Region
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  DBInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: DB Instance Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  DBInstanceSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DB Instance Subnets
+      SubnetIds:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 25
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 0
+      DBInstanceClass: !Ref DBInstanceInstanceClass
+      DBSubnetGroupName: !Ref DBInstanceSubnetGroup
+      Engine: MySQL
+      MasterUsername: test
+      MasterUserPassword: !Ref DBInstanceMasterUserPassword
+      PubliclyAccessible: true
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DBInstanceSecurityGroup
+
+  DBInstanceReadReplica:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 25
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 0
+      DBInstanceClass: !Ref DBInstanceInstanceClass
+      DBSubnetGroupName: !Ref DBInstanceSubnetGroup
+      Engine: MySQL
+      MasterUsername: test
+      MasterUserPassword: !Ref DBInstanceMasterUserPassword
+      PubliclyAccessible: true
+      SourceDBInstanceIdentifier: !Ref DBInstance
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DBInstanceSecurityGroup
+
+
+Outputs: {}
