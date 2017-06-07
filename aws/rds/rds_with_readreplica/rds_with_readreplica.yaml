@@ -52,25 +52,19 @@ Resources:
 
   # Two subnets in different AZs are required because a
   # DBSubnetGroup requires two subnets in unique AZs
-  # first subnet - this needs to be in "AZ x"
+  # first subnet - this needs to be in "AZ 0"
   PublicSubnet01:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone:
-        Fn::Select:
-        - 0
-        - Fn::GetAZs: !Ref AWS::Region
+      AvailabilityZone: !Select [ 0, !GetAZs {Ref: 'AWS::Region'} ]
       CidrBlock: 10.0.0.0/25
       VpcId: !Ref VPC
 
-  # second subnet - this needs to be in "AZ y"
+  # second subnet - this needs to be in "AZ 1"
   PublicSubnet02:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone:
-        Fn::Select:
-        - 1
-        - Fn::GetAZs: !Ref AWS::Region
+      AvailabilityZone: !Select [ 1, !GetAZs {Ref: 'AWS::Region'} ]
       CidrBlock: 10.0.0.128/25
       VpcId: !Ref VPC
 
@@ -111,7 +105,8 @@ Resources:
       AllocatedStorage: 25
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: 0
+      # BackupRetentionPeriod is required in order to use a ReadReplica
+      BackupRetentionPeriod: 1
       DBInstanceClass: !Ref DBInstanceInstanceClass
       DBSubnetGroupName: !Ref DBInstanceSubnetGroup
       Engine: MySQL
@@ -128,14 +123,16 @@ Resources:
       AllocatedStorage: 25
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      # BackupRetentionPeriod should not be set for Read Replicas
+      BackupRetentionPeriod: 0
       DBInstanceClass: !Ref DBInstanceInstanceClass
-      DBSubnetGroupName: !Ref DBInstanceSubnetGroup
+      # DBSubnetGroupName should not be specified for Read Replicas
+      # CloudFormation Error Message: DbSubnetGroupName should not be specified for read replicas that are created in the same region as the master
       Engine: MySQL
       MasterUsername: test
       MasterUserPassword: !Ref DBInstanceMasterUserPassword
       PubliclyAccessible: true
       SourceDBInstanceIdentifier: !Ref DBInstance
+      # ReadReplica StorageType is not required to be the same type as that of the Master instance
       StorageType: gp2
       VPCSecurityGroups:
         - !Ref DBInstanceSecurityGroup
