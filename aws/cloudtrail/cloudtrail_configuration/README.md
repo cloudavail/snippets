@@ -5,5 +5,5 @@ The CloudFormation file `cloudtrail_configuration.yaml` in this directory will c
 
 `aws cloudformation validate-template --template-body file://cloudtrail_configuration.yaml`
 
-# Create a CloudTrail 
+# Create a CloudTrail Trail
 `aws cloudformation create-stack --stack-name CloudTrailEnabled --template-body file://cloudtrail_configuration.yaml --region us-west-2`
