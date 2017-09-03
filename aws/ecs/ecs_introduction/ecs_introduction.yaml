@@ -149,7 +149,6 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-      Path: /
 
   containerInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -174,7 +173,6 @@ Resources:
   containerInstanceInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Path: /
       Roles:
         - !Ref containerInstanceECSRole
 
