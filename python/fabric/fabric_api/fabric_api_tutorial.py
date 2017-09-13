@@ -13,8 +13,9 @@ app_name = os.path.basename(__file__)
 
 # accept and parse user provided options
 parser = argparse.ArgumentParser()
-parser.add_argument('--task', help='command to run on remote server.', 
-    default='get_hostname', choices=['get_hostname','get_os'])
+parser.add_argument('--task', help='command to run on remote server.',
+                    choices=['get_hostname','get_os'],
+                    default='get_hostname')
 args = parser.parse_args()
 task = args.task
 
