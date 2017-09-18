@@ -1,0 +1,144 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: A basic CloudFormation template for an RDS Aurora cluster. This fails with error message "Replication from cluster in same region is not supported".
+
+Parameters:
+
+  AuroraDBBackupRetentionPeriod:
+    Default: 1
+    MinValue: 1
+    MaxValue: 35
+    Type: Number
+
+  AuroraDBInstanceType:
+    Default: db.t2.small
+    AllowedValues:
+      - db.t2.small
+    Description: The instance type to use for the database.
+    Type: String
+
+  AuroraDBMasterUserPassword:
+    Description: DB Instance MasterUserPassword
+    NoEcho: true
+    Type: String
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # Two subnets in different AZs are required because a
+  # DBSubnetGroup requires two subnets in unique AZs
+  # first subnet - this needs to be in "AZ x"
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  # second subnet - this needs to be in "AZ y"
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  AuroraDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: DB Instance Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  AuroraDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DB Instance Subnets
+      SubnetIds:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  AuroraDBClusterPrimary:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: !Ref AuroraDBBackupRetentionPeriod
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      Engine: aurora
+      MasterUsername: aurora_test
+      MasterUserPassword: !Ref AuroraDBMasterUserPassword
+      VpcSecurityGroupIds:
+        - !Ref AuroraDBSecurityGroup
+
+  AuroraInstancePrimary01:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref AuroraDBClusterPrimary
+      DBInstanceClass: !Ref AuroraDBInstanceType
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      Engine: aurora
+
+  AuroraDBClusterReadReplica:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: !Ref AuroraDBBackupRetentionPeriod
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      Engine: aurora
+      # arn:aws:rds:us-west-2:187376578462:cluster:basicaurorainstance-auroradbcluster-y194b911xqez
+      ReplicationSourceIdentifier: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraDBClusterPrimary}
+      VpcSecurityGroupIds:
+        - !Ref AuroraDBSecurityGroup
+
+  AuroraInstanceReadReplica01:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref AuroraDBClusterReadReplica
+      DBInstanceClass: !Ref AuroraDBInstanceType
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      Engine: aurora
+
+Outputs: {}
