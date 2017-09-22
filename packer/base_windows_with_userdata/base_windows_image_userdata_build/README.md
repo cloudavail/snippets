@@ -11,8 +11,8 @@ This step assumes you've created a "Packer Build VPC" and made available the `$P
 # Run Packer
 
 Validate the Packer File:
-`packer validate windows_with_iis.json`
+`packer validate windows_with_userdata.json`
 
 Create an AMI:
 
-`packer build windows_with_iis.json`
+`packer build windows_with_userdata.json`
