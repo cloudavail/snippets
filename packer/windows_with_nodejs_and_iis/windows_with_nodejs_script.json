@@ -11,7 +11,7 @@
     "user_data_file": "./windows_with_iis_install.ps1",
     "subnet_id": "{{user `packer_subnet_id`}}",
     "vpc_id": "{{user `packer_vpc_id`}}",
-    "ami_name": "packer-windows-test {{timestamp}}",
+    "ami_name": "windows_with_nodejs_script {{timestamp}}",
     "communicator": "winrm",
     "winrm_username": "Administrator",
     "winrm_password": "Password!23",
@@ -20,8 +20,8 @@
   "provisioners": [
     {
       "type": "file",
-      "source": "./test.js",
-      "destination": "C:/nodetest/test.js"
+      "source": "./nodejs_script_copy_file.js",
+      "destination": "C:/nodetest/nodejs_script_copy_file.js"
     },
     {
       "type": "file",
