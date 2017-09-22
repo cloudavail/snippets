@@ -1,0 +1,32 @@
+{
+  "builders": [{
+    "type": "amazon-ebs",
+    "source_ami": "ami-aa3cdcd2",
+    "region": "us-west-2",
+    "instance_type": "t2.medium",
+    "user_data_file": "./windows_with_iis.ps1",
+    "subnet_id": "subnet-bd268ddb",
+    "vpc_id": "vpc-aa31aacc",
+    "ami_name": "packer-windows-test {{timestamp}}",
+    "communicator": "winrm",
+    "winrm_username": "Administrator",
+    "winrm_password": "Password!23",
+    "associate_public_ip_address": true
+  }],
+  "provisioners": [
+    {
+      "type": "file",
+      "source": "./test.js",
+      "destination": "C:/nodetest/test.js"
+    },
+    {
+      "type": "file",
+      "source": "./iisstart.htm",
+      "destination": "C:/nodetest/iisstart.htm"
+    },
+    {
+      "type": "powershell",
+      "script": "./user-data.txt"
+    }
+  ]
+}
