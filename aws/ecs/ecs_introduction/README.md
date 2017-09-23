@@ -2,8 +2,6 @@
 
 `AWS_DEFAULT_REGION="us-west-2"`
 
-`key_name="efstest"`
-
 # Validate CloudFormation
 `aws cloudformation validate-template --template-body file://ecs_introduction.yaml`
 
