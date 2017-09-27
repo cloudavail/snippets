@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  BackupServerInstanceType:
+    Description: t2 nano instance type
+    Type: String
+    Default: t2.nano
+    AllowedValues:
+    - t2.nano
+    ConstraintDescription: must be a valid EC2 instance type.
+Mappings:
+  AWSInstanceType2Arch:
+    t2.nano:
+      Arch: 64
+  AWSRegionArch2AMI:
+    us-west-2:
+      '64': ami-6e1a0117
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+  BackupServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: api server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+  BackupServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref BackupServerInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+          - AWSRegionArch2AMI
+          - Ref: AWS::Region
+          - Fn::FindInMap:
+            - AWSInstanceType2Arch
+            - Ref: BackupServerInstanceType
+            - Arch
+      InstanceType: !Ref BackupServerInstanceType
+      SecurityGroups:
+        - !Ref BackupServerSecurityGroup
+      KeyName: rex-test
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            sudo apt-get -y update
+            sudo apt-get -y install duplicity
+            sudo apt-get -y install python-pip
+            sudo pip install boto
+            sudo pip isntall awscli
+            sudo mkdir /test
+            sudo touch /test/touch.txt
+            duplicity /test s3://s3.amazonaws.com/bucket-name-here --s3-use-new-style --no-encryption
+
+            # manual installation for amazon linux (Does not work, librsync-devel not available)
+
+            # sudo apt-get -y install wget
+            # sudo wget https://code.launchpad.net/duplicity/0.7-series/0.7.14/+download/duplicity-0.7.14.tar.gz
+            # tar -xzf duplicity-0.7.14.tar.gz
+            # sudo apt-get -y install python-devel
+            # sudo apt-get -y install libffi-devel
+            # sudo apt-get -y install librsync-devel
+            # sudo apt-get -y install gnupg
+            # sudo apt-get -y install intltool
+            # sudo apt-get -y install gcc-c++
+            # sudo apt-get -y install lftp
+            # sudo pip install paramiko
+            # sudo pip install boto
+            # sudo pip install pycryptopp
+            # sudo pip install fasteners
+            # cd duplicity-0.7.14
+            # sudo python setup.py install
+
+  BackupServerRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ec2.amazonaws.com
+              Action: sts:AssumeRole
+  BackupServerBucketPolicy:
+      Type: AWS::IAM::Policy
+      Properties:
+        Roles:
+          - !Ref BackupServerRole
+        PolicyName: BackupServerBucketPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action: s3:*
+              Effect: Allow
+              Resource: arn:aws:s3:::*
+  BackupServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - !Ref BackupServerRole
+  BackupServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - !Ref PublicSubnet01
+      - !Ref PublicSubnet02
+      LaunchConfigurationName: !Ref BackupServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
