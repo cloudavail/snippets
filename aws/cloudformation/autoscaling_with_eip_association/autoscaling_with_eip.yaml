@@ -13,6 +13,12 @@ Parameters:
     AllowedValues:
     - t2.small
     ConstraintDescription: must be a valid EC2 instance type.
+  Route53DomainName:
+    Type: String
+    Default: testingwebsite2312316.com
+  Route53RecordSetName:
+    Type: String
+    Default: server1
 
 Mappings:
 
@@ -86,6 +92,7 @@ Resources:
           mac_for_interface_id=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
           interface_id_for_eip=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${!mac_for_interface_id}/interface-id)
           aws ec2 associate-address --allocation-id ${EIP.AllocationId} --network-interface-id ${!interface_id_for_eip} --region ${AWS::Region}
+
   webServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -126,7 +133,8 @@ Resources:
               Principal:
                 Service: ec2.amazonaws.com
               Action: sts:AssumeRole
-  BackupServerBucketPolicy:
+
+  WebServerEIPPolicy:
       Type: AWS::IAM::Policy
       Properties:
         Roles:
@@ -138,6 +146,7 @@ Resources:
             - Action: ec2:AssociateAddress
               Effect: Allow
               Resource: "*"
+
   WebServerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -149,3 +158,18 @@ Resources:
     Properties:
       Domain: vpc
     DependsOn: VPC
+
+  VPNRoute53HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref Route53DomainName
+
+  VPNRoute53HostedZoneRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref VPNRoute53HostedZone
+      Name: !Join ['', [ !Ref Route53RecordSetName, ., !Ref Route53DomainName, . ] ]
+      TTL: 300
+      Type: A
+      ResourceRecords:
+      - !Ref EIP
