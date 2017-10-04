@@ -1,0 +1,151 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing two subnets and an auto scaling group containing
+  instances with Internet access.
+
+Parameters:
+  webServerInstanceType:
+    Description: web Server EC2 instance type
+    Type: String
+    Default: t2.small
+    AllowedValues:
+    - t2.small
+    ConstraintDescription: must be a valid EC2 instance type.
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.small:
+      Arch: 64
+  AWSRegionArch2AMI:
+    us-west-2:
+      '64': ami-e689729e
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  webServerLaunchConfig:
+  # https://github.com/bundyfx/psconf-eu2017/blob/fcb71834dce20288ee9a9788d2e10206082aff21/developers-world/demo/Cloudformation/Demo.yaml
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      KeyName: rex-test
+      IamInstanceProfile: !Ref WebServerInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: webServerInstanceType
+          - Arch
+      SecurityGroups:
+        - !Ref webServerSecurityGroup
+      InstanceType: !Ref webServerInstanceType
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          mac_for_interface_id=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
+          interface_id_for_eip=$(curl -s http://169.254.169.254/latest/meta-data/network/interfaces/macs/${!mac_for_interface_id}/interface-id)
+          aws ec2 associate-address --allocation-id ${EIP.AllocationId} --network-interface-id ${!interface_id_for_eip} --region ${AWS::Region}
+  webServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  webServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      LaunchConfigurationName: !Ref webServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+
+  WebServerIamRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ec2.amazonaws.com
+              Action: sts:AssumeRole
+  BackupServerBucketPolicy:
+      Type: AWS::IAM::Policy
+      Properties:
+        Roles:
+          - !Ref WebServerIamRole
+        PolicyName: WebServerEIPPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action: ec2:AssociateAddress
+              Effect: Allow
+              Resource: "*"
+  WebServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - !Ref WebServerIamRole
+
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+    DependsOn: VPC
