@@ -1,5 +1,6 @@
 .DS_Store
 .gradle
 .vagrant
-node_modules/
 *.pyc
+node_modules/
+ubuntu-xenial-16.04-cloudimg-console.log
