@@ -91,7 +91,7 @@ Resources:
     # Shards: 1
     # Multi-AZ: disabled
     # Nodes:
-    #   nodeid-001, Current Role: Primary
+    #   nodeid-001, Current Role: primary
     Type: AWS::ElastiCache::ReplicationGroup
     Properties:
       AutomaticFailoverEnabled: false
@@ -113,9 +113,12 @@ Resources:
 
   RedisNoAutoFailoverTwoNodeReplicationGroup:
     # this resources, when viewed in the AWS Console, has the following attributes:
-    # Number of Nodes:
-    # Shards:
+    # Number of Nodes: 2
+    # Shards: 1
     # Multi-AZ: disabled
+    # Nodes:
+    #   nodeid-001, Current Role: primary
+    #   nodeid-001, Current Role: replica
     Type: AWS::ElastiCache::ReplicationGroup
     Properties:
       AutomaticFailoverEnabled: false
@@ -136,9 +139,9 @@ Resources:
     # Shards: 1
     # Multi-AZ: enabled
     # Nodes:
-    # nodeid-001, Current Role: primary
-    # nodeid-002, Current Role: replica
-    #   in CloudWatch: Replication Lag metric does exist and has value greater than one
+    #   nodeid-001, Current Role: primary
+    #   nodeid-002, Current Role: replica
+    #     in CloudWatch: Replication Lag metric does exist and has value greater than one
     Type: AWS::ElastiCache::ReplicationGroup
     Properties:
       # Automatic failover is not supported for T1 and T2 cache node types.
@@ -162,10 +165,13 @@ Resources:
 
   RedisYesAutoFailoverThreeClusterReplicationGroup:
     # this resources, when viewed in the AWS Console, has the following attributes:
-    # Number of Nodes:
-    # Shards:
-    # Multi-AZ:
+    # Number of Nodes: 3
+    # Shards: 1
+    # Multi-AZ: enabled
     # Nodes:
+    #   nodeid-001, Current Role: primary
+    #   nodeid-002, Current Role: replica
+    #   nodeid-003, Current Role: replica
     Type: AWS::ElastiCache::ReplicationGroup
     Properties:
       AutomaticFailoverEnabled: true
