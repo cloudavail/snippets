@@ -61,11 +61,23 @@ Resources:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet1
 
-  RedisParameterGroup:
+  RedisClusterEnabledNoParameterGroup:
     Type: AWS::ElastiCache::ParameterGroup
     Properties:
       CacheParameterGroupFamily: redis3.2
       Description: RedisParameterGroup
+      Properties:
+        # cluster-enabled: no is not acceptable
+        cluster-enabled: "no"
+
+  RedisClusterEnabledYesParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: redis3.2
+      Description: RedisParameterGroup
+      Properties:
+        # cluster-enabled: yes is not acceptable
+        cluster-enabled: "yes"
 
   RedisSubnetGroup:
     Type: AWS::ElastiCache::SubnetGroup
@@ -85,18 +97,19 @@ Resources:
           FromPort: 6379
           ToPort: 6379
 
-  RedisNoAutoFailoverOneNumNodeGroups:
+  RedisNoAutoFailoverOneNumNodeGroupsClusterEnabledNoReplicationGroup:
     # this resources, when viewed in the AWS Console, has the following attributes:
     # Number of Nodes: 1
     # Shards: 1
     # Multi-AZ: disabled
+    # Mode: Redis
     # Nodes:
     #   nodeid-001, Current Role: primary
     Type: AWS::ElastiCache::ReplicationGroup
     Properties:
       AutomaticFailoverEnabled: false
       CacheNodeType: cache.t2.micro
-      CacheParameterGroupName: !Ref RedisParameterGroup
+      CacheParameterGroupName: !Ref RedisClusterEnabledNoParameterGroup
       CacheSubnetGroupName: !Ref RedisSubnetGroup
       Engine: redis
       EngineVersion: 3.2.4
@@ -105,7 +118,86 @@ Resources:
       # NumNodeGroups 2 requires "cluster-enabled" parameter according to CloudFormation error:
       # Use a parameter group with cluster-enabled parameter to create more than one node group.
       NumNodeGroups: 1
-      ReplicationGroupDescription: RedisNoAutoFailoverOneNodeReplicationGroup
+      ReplicationGroupDescription: RedisNoAutoFailoverOneNumNodeGroupsClusterEnabledNoReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  # Below Does Not Work
+  # Error: Use a parameter group with cluster-enabled parameter to create more than one node group.
+  # RedisNoAutoFailoverTwoNumNodeGroupsClusterEnabledNoReplicationGroup:
+  #   # this resources, when viewed in the AWS Console, has the following attributes:
+  #   # Number of Nodes:
+  #   # Shards:
+  #   # Multi-AZ:
+  #   # Nodes:
+  #   #   nodeid-001
+  #   Type: AWS::ElastiCache::ReplicationGroup
+  #   Properties:
+  #     AutomaticFailoverEnabled: false
+  #     CacheNodeType: cache.t2.micro
+  #     CacheParameterGroupName: !Ref RedisClusterEnabledNoParameterGroup
+  #     CacheSubnetGroupName: !Ref RedisSubnetGroup
+  #     Engine: redis
+  #     EngineVersion: 3.2.4
+  #     # NumNodeGroups may not be "0" otherwise the following error is thrown:
+  #     # Specified engine version allows only one node group.
+  #     # NumNodeGroups 2 requires "cluster-enabled" parameter according to CloudFormation error:
+  #     # Use a parameter group with cluster-enabled parameter to create more than one node group.
+  #     NumNodeGroups: 2
+  #     ReplicationGroupDescription: RedisNoAutoFailoverTwoNumNodeGroupsClusterEnabledNoReplicationGroup
+  #     SecurityGroupIds:
+  #       - !Ref RedisSecurityGroup
+
+  RedisNoAutoFailoverOneNumNodeGroupsClusterEnabledYesReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 1
+    # Shards: 1
+    # Multi-AZ: enabled
+    # Shard Name:
+    #   shardid-001: Nodes: 1, Slots/Keyspaces: 0-16383
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterEnabledYesParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      # NumNodeGroups may not be "0" otherwise the following error is thrown:
+      # Specified engine version allows only one node group.
+      # NumNodeGroups 2 requires "cluster-enabled" parameter according to CloudFormation error:
+      # Use a parameter group with cluster-enabled parameter to create more than one node group.
+      NumNodeGroups: 1
+      ReplicationGroupDescription: RedisNoAutoFailoverOneNumNodeGroupsClusterEnabledYesReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisNoAutoFailoverTwoNumNodeGroupsClusterEnabledYesReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 2
+    # Shards: 2
+    # Multi-AZ: enabled
+    # Shard Name:
+    #   shardid-001: Nodes: 1, Slots/Keyspaces: 0-8191
+    #   shardid-002: Nodes: 1, Slots/Keyspaces: 8192-16383
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterEnabledYesParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      # NumNodeGroups may not be "0" otherwise the following error is thrown:
+      # Specified engine version allows only one node group.
+      # NumNodeGroups 2 requires "cluster-enabled" parameter according to CloudFormation error:
+      # Use a parameter group with cluster-enabled parameter to create more than one node group.
+      NumNodeGroups: 2
+      ReplicationGroupDescription: RedisNoAutoFailoverTwoNumNodeGroupsClusterEnabledYesReplicationGroup
       SecurityGroupIds:
         - !Ref RedisSecurityGroup
 
