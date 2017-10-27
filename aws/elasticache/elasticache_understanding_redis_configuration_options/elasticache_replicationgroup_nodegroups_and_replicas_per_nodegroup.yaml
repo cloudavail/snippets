@@ -1,0 +1,205 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing two subnets and different instances of an ElastiCache ReplicationGroup
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet0RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet0
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  RedisClusterParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: redis3.2
+      Description: RedisParameterGroup
+      Properties:
+        cluster-enabled: "yes"
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: RedisSubnetGroup
+      SubnetIds:
+        - !Ref PublicSubnet0
+        - !Ref PublicSubnet1
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RedisSecurityGroup
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+
+  RedisOneNumNodeGroupsOneReplicaPerNodeGroupReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 
+    # Shards:
+    # Multi-AZ:
+    # Shard Name:
+    #   shardid-001: Nodes:, Slots/Keyspaces:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumNodeGroups: 1
+      ReplicasPerNodeGroup: 1
+      ReplicationGroupDescription: RedisOneNumNodeGroupsOneReplicaPerNodeGroupReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisOneNumNodeGroupsTwoReplicasPerNodeGroupReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 
+    # Shards:
+    # Multi-AZ:
+    # Shard Name:
+    #   shardid-001: Nodes:, Slots/Keyspaces:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumNodeGroups: 1
+      ReplicasPerNodeGroup: 2
+      ReplicationGroupDescription: RedisOneNumNodeGroupsTwoReplicasPerNodeGroupReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisOneTwoNodeGroupsOneReplicasPerNodeGroupReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 
+    # Shards:
+    # Multi-AZ:
+    # Shard Name:
+    #   shardid-001: Nodes:, Slots/Keyspaces:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumNodeGroups: 2
+      ReplicasPerNodeGroup: 1
+      ReplicationGroupDescription: RedisOneTwoNodeGroupsOneReplicasPerNodeGroupReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisOneTwoNodeGroupsTwoReplicasPerNodeGroupReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 
+    # Shards:
+    # Multi-AZ:
+    # Shard Name:
+    #   shardid-001: Nodes:, Slots/Keyspaces:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumNodeGroups: 2
+      ReplicasPerNodeGroup: 2
+      ReplicationGroupDescription: RedisOneTwoNodeGroupsTwoReplicasPerNodeGroupReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisOneThreeNodeGroupsThreeReplicasPerNodeGroupReplicationGroup:
+    # this resources, when viewed in the AWS Console, has the following attributes:
+    # Number of Nodes: 
+    # Shards:
+    # Multi-AZ:
+    # Shard Name:
+    #   shardid-001: Nodes:, Slots/Keyspaces:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      # AutomaticFailoverEnabled: must be true, otherwise an error is thrown:
+      # Redis with cluster mode enabled cannot be created with auto failover turned off.
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: !Ref RedisClusterParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumNodeGroups: 3
+      ReplicasPerNodeGroup: 3
+      ReplicationGroupDescription: RedisOneTwoNodeGroupsTwoReplicasPerNodeGroupReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+Outputs: {}

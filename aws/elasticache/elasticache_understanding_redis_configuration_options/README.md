@@ -54,3 +54,9 @@ Replication Lag
 
 ## Create an ElastiCacheReplicationGroup Stack
 `aws cloudformation create-stack --stack-name ElastiCacheReplicationGroup --template-body file://elasticache_replicationgroup_nodegroups.yaml`
+
+## Validate CloudFormation
+`aws cloudformation validate-template --template-body file://elasticache_replicationgroup_nodegroups_and_replicas_per_nodegroup.yaml`
+
+## Create an ElastiCacheReplicationGroup Stack
+`aws cloudformation create-stack --stack-name ElastiCacheReplicationGroup --template-body file://elasticache_replicationgroup_nodegroups_and_replicas_per_nodegroup.yaml`
