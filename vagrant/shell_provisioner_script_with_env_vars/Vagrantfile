@@ -6,8 +6,8 @@ Vagrant.configure(vagrantfile_api_version) do |config|
 
   config.vm.box = "ubuntu/xenial64"
   config.vm.provision "shell" do |s|
-  	# tested the lines below prior to using
-  	# ENV['USER'] and ENV['COMPANY']
+    # tested the lines below prior to using
+    # ENV['USER'] and ENV['COMPANY']
     # s.env = { user: 'colin', company: 'cloudavail' }
     s.env = { user: ENV['USER'], company: ENV['COMPANY'] }
     s.path = "./shell_provisioner_script_with_env_vars.sh"

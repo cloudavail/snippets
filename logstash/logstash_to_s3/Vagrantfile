@@ -1,0 +1,15 @@
+# objective:
+# create a logstash server that sends log files to S3
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "centos/7"
+  config.vm.provision "shell" do |s|
+    s.env = { AWS_ACCESS_KEY_ID: ENV['AWS_ACCESS_KEY_ID'], AWS_SECRET_ACCESS_KEY: ENV['AWS_SECRET_ACCESS_KEY'] }
+    s.path = "./logstash_to_s3.sh"
+  end
+  config.vm.hostname = 'logstash'
+
+end
