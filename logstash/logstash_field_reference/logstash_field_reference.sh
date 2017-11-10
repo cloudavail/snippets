@@ -4,14 +4,16 @@ yum -y install java-1.8.0-openjdk
 
 # install logstash
 ## install logstash repository
-rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 cat > /etc/yum.repos.d/logstash.repo <<EOF
-[logstash-2.4]
-name=Logstash repository for 2.4.x packages
-baseurl=https://packages.elastic.co/logstash/2.4/centos
+[logstash-5.x]
+name=Elastic repository for 5.x packages
+baseurl=https://artifacts.elastic.co/packages/5.x/yum
 gpgcheck=1
-gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1
+autorefresh=1
+type=rpm-md
 EOF
 # install logstash
 yum -y install logstash
@@ -31,4 +33,4 @@ output {
 }
 EOF
 
-# /opt/logstash/bin/logstash --config /etc/logstash/conf.d/testing.conf --debug
+# /usr/share/logstash/bin/logstash --path.config /etc/logstash/conf.d/testing.conf --log.level=debug
