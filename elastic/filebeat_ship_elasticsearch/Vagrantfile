@@ -1,0 +1,22 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/xenial64'
+  config.vm.hostname = 'esfbtest'
+
+  # port forwarding for elasticsearch
+  config.vm.network :forwarded_port, guest: 9200, host: 9200
+
+
+  config.vm.provider "virtualbox" do |v|
+    # additional memory added to resolve the following issue:
+    # There is insufficient memory for the Java Runtime Environment to continue.
+    # Native memory allocation (mmap) failed to map 899284992 bytes for committing reserved memory.
+    # roughly 
+    v.memory = 2048
+  end
+
+  config.vm.provision(:shell, path: './filebeat_ship_elasticsearch.sh')
+
+end
