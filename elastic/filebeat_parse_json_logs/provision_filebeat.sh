@@ -13,7 +13,8 @@ processors:
      fields: ['message']
      # merges fields into json root
      target: ""
-     overwrite_keys: false
+ - drop_fields:
+     fields: ['message']
 output.elasticsearch:
   hosts: ["127.0.0.1:9200"]
 EOF
