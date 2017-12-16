@@ -1,0 +1,19 @@
+# objective: create a vagrant instance that runs docker
+
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/xenial64"
+  config.vm.hostname = "filebeat"
+  config.vm.network "forwarded_port", guest: 6379, host: 6379
+  config.vm.network "forwarded_port", guest: 9200, host: 9200
+  config.vm.provision "shell", path: "./provision_elasticsearch.sh"
+  config.vm.provision "shell", path: "./provision_filebeat.sh"
+  config.vm.provision "file", source: "./benji-optimizer-api-app-algo-element.leg", destination: "/var/log/benji-optimizer.log"
+  config.vm.provider "virtualbox" do |v|
+    v.memory = 2048
+    v.cpus = 2
+  end
+
+end
