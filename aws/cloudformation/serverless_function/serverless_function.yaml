@@ -1,0 +1,23 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+
+Description: For stopping Splunk services automatically.
+
+Resources:
+
+  HelloWorld:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: 'lambda'
+      FunctionName: HelloWorld
+      Handler: hello_world.handler
+      Runtime: python2.7
+      Events:
+        PostResource:
+          Type: Api
+          Properties:
+            Path: /hello_world
+            Method: post
+
