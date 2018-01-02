@@ -1,0 +1,192 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for an ECS Cluster and Associated Resources.
+
+Parameters:
+
+  ContainerInstanceInstanceType:
+    Description: Container Instance Instance Type
+    Type: String
+    # it is preferred to utilize a 2 vCPU instance
+    Default: t2.medium
+
+  KeyName:
+    Description: ECS KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: cjohnson-test
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.micro:
+      Arch: 64HVM
+    t2.small:
+      Arch: 64HVM
+    t2.medium:
+      Arch: 64HVM
+
+  AWSRegionArch2AMI:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI_launch_latest.html
+    # aws ec2 describe-images --owners amazon --filters Name=name,Values=*amazon-ecs-optimized --region us-west-2 --output table
+    us-west-2:
+      64HVM: ami-7114c909
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - InternetGateway
+      - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ContainerInstanceECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ContainerInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Container Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      # SecurityGroupEgress:
+      # the ECS Agent Requires Outbound Connectivity, otherwise the following error occurs
+      # 2018-01-01T05:51:21Z [ERROR] Could not register: RequestError: send request failed
+      # caused by: Post https://ecs.us-west-2.amazonaws.com/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+
+  ContainerInstanceInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ContainerInstanceECSRole
+
+  ContainerInstanceAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      LaunchConfigurationName: !Ref ContainerInstanceLaunchConfig
+      MinSize: 2
+      MaxSize: 2
+      DesiredCapacity: 2
+
+  ContainerInstanceLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref ContainerInstanceInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+          - AWSRegionArch2AMI
+          - Ref: AWS::Region
+          - Fn::FindInMap:
+            - AWSInstanceType2Arch
+            - Ref: ContainerInstanceInstanceType
+            - Arch
+      InstanceType: !Ref ContainerInstanceInstanceType
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref ContainerInstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+
+  StressTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: stress
+          # image to use for a given container
+          # can be repository-url/image:tag
+          # in this case, we wish to use "stress"
+          # https://hub.docker.com/r/progrium/stress/
+          # defining "Entrypoint
+          EntryPoint: ["/usr/bin/stress", "--verbose"]
+          # note that --cpu 1 will use one core - or roughly 1024 CPU
+          Command: ["--cpu", "1"]
+          Image: progrium/stress
+          Cpu: 1024
+          Memory: 512
+          Essential: true
+
+  StressServiceDefinition:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref StressTaskDefinition
+
+Outputs: {}
