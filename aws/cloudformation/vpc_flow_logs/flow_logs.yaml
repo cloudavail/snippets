@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Create a VPC with flow logs enabled.
+
+Parameters:
+
+  serverInstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.small
+    AllowedValues:
+    - t2.small
+    ConstraintDescription: must be a valid EC2 instance type.
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.small:
+      Arch: 64
+  AWSRegionArch2AMI:
+    us-west-2:
+      '64': ami-32cf7b4a
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  serverLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      KeyName: rvia-test
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: serverInstanceType
+          - Arch
+      SecurityGroups:
+        - !Ref serverSecurityGroup
+      InstanceType: !Ref serverInstanceType
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+
+  serverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 ecurity Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  serverAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      LaunchConfigurationName: !Ref serverLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+
+  serverFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      DeliverLogsPermissionArn : !GetAtt [ flowLogIamRole, Arn ]
+      LogGroupName : testVPCLogs
+      ResourceId : !Ref VPC
+      ResourceType : VPC
+      TrafficType : ALL
+
+  flowLogIamRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: vpc-flow-logs.amazonaws.com
+              Action: sts:AssumeRole
+
+  flowLogPolicy:
+      Type: AWS::IAM::Policy
+      Properties:
+        Roles:
+          - !Ref flowLogIamRole
+        PolicyName: FlowLogPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              Effect: Allow
+              Resource: "*"
