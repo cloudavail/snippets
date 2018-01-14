@@ -22,11 +22,11 @@ logger.addHandler(console_handler)
 
 module_name = __name__
 
-logging.critical('Log message at CRITICAL from ' + module_name)
-logging.error('Log message at ERROR from ' + module_name)
-logging.warning('Log message at WARNING from ' + module_name)
-logging.info('Log message at INFO from ' + module_name)
-logging.debug('Log message at DEBUG from ' + module_name)
+logging.critical('Log message at CRITICAL from {}'.format(module_name))
+logging.error('Log message at ERROR from {}'.format(module_name))
+logging.warning('Log message at WARNING from {}'.format(module_name))
+logging.info('Log message at INFO from {}'.format(module_name))
+logging.debug('Log message at DEBUG from {}'.format(module_name))
 
 # calls my_function that is contained within my_module
 my_module.my_function()
