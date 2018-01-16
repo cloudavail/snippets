@@ -1,0 +1,8 @@
+version: 1
+
+loggers:
+  my_module:
+    level: WARNING
+
+root:
+  level: INFO
