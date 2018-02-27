@@ -1,0 +1,44 @@
+---
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: A template for creating a lambda template and required resources
+
+Parameters:
+
+  LambdaCodeS3Bucket:
+    Description: s3 bucket where lambda code is located
+    Type: String
+
+  LambdaCodeS3Key:
+    Description: s3 key identifying the ZIP file containing the lambda code
+    Type: String
+
+Resources:
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties: 
+      # the "Property" code is defined here:
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-lambda-function-code.html
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Handler: hello_world.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python2.7
