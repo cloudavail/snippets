@@ -10,4 +10,4 @@ services:
     build: ./mysql/
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: test
+      MYSQL_DATABASE: visits

@@ -1,4 +1,5 @@
 import mysql.connector
+import datetime
 from flask import Flask
 
 app = Flask(__name__)
@@ -13,31 +14,39 @@ class mysqlConnection:
     }
 
     cnx = mysql.connector.connect(**config)
-    cnx.cursor().execute('use test;')
+    cnx.cursor().execute('use visits;')
 
     def __init__(self):
-        self.cnx.cursor().execute('CREATE TABLE my_table (count VARCHAR(100));')
-
-
-class count:
-
-    number = 0
-    @classmethod
-    def count(cls):
-        cls.number += 1
-        return cls.number
+        self.cnx.cursor().execute('CREATE TABLE visit_stats (count INT(2));')
 
 
 @app.route('/')
 def root():
+    start_time = datetime.datetime.now()
     cur = mysqlConnection.cnx.cursor()
-    cur.execute('SELECT * FROM test_table;')
-    tmp_string = ''
-    for item in cur.fetchall():
-        tmp_string += '{0}\n'.format(item)
-    if tmp_string == '':
-        tmp_string = 'First visit'
-    cur.execute('INSERT INTO test_table VALUES("visit_{0}")'.format(count.count()))
+    cur.execute('SELECT * FROM visit_stats;')
+    min_time = 1000
+    max_time = 0
+    total_time = 0
+    all_items = cur.fetchall()
+    if len(all_items) != 0:
+        for item in all_items:
+            if min_time > item[0]:
+                min_time = item[0]
+            if max_time < item[0]:
+                max_time = item[0]
+            total_time += item[0]
+        avg_time = max_time / len(all_items)
+    else:
+        avg_time = 0
+        min_time = 0
+
+    tmp_string = '<h1>Visit Statistics</h1>\n'
+    tmp_string += '<table><tr><th># of requests |</th><th>Avg. Response Time |</th><th>Min. Response Time |</th><th>Max Response Time</th></tr>'
+    tmp_string += '<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}<td></tr><table>'.format(
+        len(all_items), avg_time, min_time, max_time)
+    seconds_elapsed = (datetime.datetime.now() - start_time).microseconds
+    cur.execute('INSERT INTO visit_stats VALUES({0})'.format(seconds_elapsed))
     return tmp_string
 
 
