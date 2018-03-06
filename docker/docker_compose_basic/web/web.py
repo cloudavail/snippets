@@ -10,14 +10,11 @@ class mysqlConnection:
     config = {
         'user': 'root',
         'password': 'password',
-        'host': 'mysql'
+        'host': 'mysql',
+        'database': 'visits'
     }
 
     cnx = mysql.connector.connect(**config)
-    cnx.cursor().execute('use visits;')
-
-    def __init__(self):
-        self.cnx.cursor().execute('CREATE TABLE visit_stats (count INT(2));')
 
 
 @app.route('/')
@@ -52,4 +49,3 @@ def root():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
-    mysqlConnection()
