@@ -1,0 +1,16 @@
+version: '3'
+services:
+  # web is a flask application
+  web:
+    build: ./web/
+    links:
+      - mysql
+    ports:
+     - '5000:5000'
+  mysql:
+    build: ./mysql/
+    environment:
+      # note: this password is included for testing environment only
+      MYSQL_ROOT_PASSWORD: 'bsRApaFbgSYM'
+    ports:
+     - '3306:3306'
