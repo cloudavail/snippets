@@ -1,8 +1,6 @@
 # Overview
 
-The purpose of this snippet is to create a MySQL / Docker installation that:
-
-1. Runs a fresh database on every `docker run` - meaning previous data is cleared.
+The purpose of this snippet is to create a MySQL / Docker installation that runs a MySQL server.
 
 # Build an Image
 
