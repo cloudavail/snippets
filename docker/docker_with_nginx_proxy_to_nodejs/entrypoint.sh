@@ -1,3 +1,4 @@
 #!/bin/bash
-nginx
-node /provision/static/server.js
+nodejs /var/node/static/server.js &
+/usr/sbin/nginx
+tail -f /dev/null
