@@ -1,0 +1,136 @@
+-----
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a Squid Proxy in a given region.
+
+Parameters:
+  SquidProxyInstanceType:
+    Description: SquidProxy EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+
+  SquidProxyKeyName:
+    Description: SquidProxy EC2 Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.micro:
+      Arch: '64'
+
+  AWSRegionArch2AMI:
+    # ubuntu AMI locator: https://cloud-images.ubuntu.com/locator/ec2/
+    us-west-2:
+      '64': ami-22741f5a
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  SquidProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SquidProxy Security Group
+      VpcId: !Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3128
+          ToPort: 3128
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  SquidProxyLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      KeyName: !Ref SquidProxyKeyName
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: SquidProxyInstanceType
+          - Arch
+      SecurityGroups:
+        - !Ref SquidProxySecurityGroup
+      InstanceType: !Ref SquidProxyInstanceType
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt -y update
+          apt -y install squid3
+          mv /etc/squid/squid.conf /etc/squid/squid.conf.bak
+          cat > /etc/squid/squid.conf <<EOF
+          # define the port on which squid will listen
+          http_port 3128
+          # acl for destination
+          acl destination_ip_any dst 0.0.0.0/0
+          http_access allow destination_ip_any
+          # acl for source
+          acl source_ip_self src 0.0.0.0/0
+          # acl allowing to any site on any network
+          http_access allow source_ip_self
+          EOF
+          systemctl reload squid
+
+  SquidProxyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      LaunchConfigurationName: !Ref SquidProxyLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+
+Outputs: {}
