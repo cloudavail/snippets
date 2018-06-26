@@ -1,5 +1,8 @@
-AWSTemplateFormatVersion: '2010-09-09'
+---
+AWSTemplateFormatVersion: 2010-09-09
+
 Parameters:
+
   apiServerInstanceType:
     Description: t2 medium instance type
     Type: String
@@ -7,30 +10,38 @@ Parameters:
     AllowedValues:
     - t2.medium
     ConstraintDescription: must be a valid EC2 instance type.
+
   webServerInstanceType:
     Description: t2 micro instance type
     Type: String
     Default: t2.micro
     AllowedValues:
     - t2.micro
+
 Mappings:
+
   AWSInstanceType2Arch:
     t2.medium:
       Arch: 64
     t2.micro:
       Arch: 64
+
   AWSRegionArch2AMI:
     us-east-1:
       '64': ami-04351e12
     us-west-2:
       '64': ami-57d9cd2e
+
 Resources:
+
   VPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/24
+
   InternetGateway:
     Type: AWS::EC2::InternetGateway
+
   PublicInternetRoute:
     Type: AWS::EC2::Route
     DependsOn:
@@ -40,39 +51,47 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
       RouteTableId: !Ref PublicInternetRouteTable
+
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
+
   PublicInternetRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
+
   PublicSubnet01:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       CidrBlock: 10.0.0.0/25
       VpcId: !Ref VPC
+
   PublicSubnet02:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       CidrBlock: 10.0.0.128/25
       VpcId: !Ref VPC
+
   PublicSubnet01RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet01
+
   PublicSubnet02RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
+
   ecsCluster:
     Type: AWS::ECS::Cluster
+
   apiServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -97,6 +116,7 @@ Resources:
             EOF
       KeyName: 'ecstaskplacement_test_20170707'
       IamInstanceProfile: !Ref joinClusterInstanceProfile
+
   webServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -121,6 +141,7 @@ Resources:
             EOF
       KeyName: 'ecstaskplacement_test_20170707'
       IamInstanceProfile: !Ref joinClusterInstanceProfile
+
   apiServerAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -131,6 +152,7 @@ Resources:
       MinSize: 2
       MaxSize: 2
       DesiredCapacity: 2
+
   webServerAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -141,6 +163,7 @@ Resources:
       MinSize: 2
       MaxSize: 2
       DesiredCapacity: 2
+
   apiServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -160,6 +183,7 @@ Resources:
         FromPort: 0
         ToPort: 65535
         CidrIp: 0.0.0.0/0
+
   webServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -179,6 +203,7 @@ Resources:
         FromPort: 0
         ToPort: 65535
         CidrIp: 0.0.0.0/0
+
   joinClusterIAMRole:
     Type: AWS::IAM::Role
     Properties:
@@ -197,6 +222,7 @@ Resources:
     Properties:
       Roles:
         - !Ref joinClusterIAMRole
+
   webLoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -212,6 +238,7 @@ Resources:
         FromPort: 0
         ToPort: 65535
         CidrIp: 0.0.0.0/0
+
   apiLoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -227,6 +254,7 @@ Resources:
         FromPort: 0
         ToPort: 65535
         CidrIp: 0.0.0.0/0
+
   apiELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -245,6 +273,7 @@ Resources:
         UnhealthyThreshold: 5
         Interval: 30
         Timeout: 5
+
   webELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -263,6 +292,7 @@ Resources:
         UnhealthyThreshold: 5
         Interval: 30
         Timeout: 5
+
   apiTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -274,6 +304,7 @@ Resources:
           PortMappings:
             - ContainerPort: 80
               HostPort: 80
+
   webTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -285,6 +316,7 @@ Resources:
           PortMappings:
             - ContainerPort: 80
               HostPort: 80
+
   apiService:
     Type: AWS::ECS::Service
     Properties:
@@ -299,6 +331,7 @@ Resources:
       PlacementConstraints:
         - Type: memberOf
           Expression: attribute:ecs.instance-type == t2.medium
+
   webService:
     Type: AWS::ECS::Service
     Properties:
@@ -313,6 +346,7 @@ Resources:
       PlacementConstraints:
         - Type: memberOf
           Expression: attribute:ecs.instance-type == t2.micro
+
   ecsServiceIAMRole:
     Type: AWS::IAM::Role
     Properties:

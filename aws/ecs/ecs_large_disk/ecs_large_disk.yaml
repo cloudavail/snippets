@@ -1,3 +1,4 @@
+---
 AWSTemplateFormatVersion: 2010-09-09
 
 Description: AWS CloudFormation Stack for an ECS Cluster and Associated Resources.
