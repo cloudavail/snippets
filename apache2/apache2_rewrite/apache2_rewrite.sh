@@ -16,7 +16,7 @@ cat > /etc/apache2/sites-available/rewrite_remove_directory.conf <<EOF
         
         # turn rewrites on!
         RewriteEngine On
-        RewriteRule ^/blog /index.html
+        RewriteRule ^/blog/(.*) /$1
 
         ErrorLog ${APACHE_LOG_DIR}/error.log
         CustomLog ${APACHE_LOG_DIR}/access.log combined
@@ -33,6 +33,15 @@ cat > /var/www/html/index.html <<EOF
 <html>
 <body>
 <p>Simple HTML Document.</p>
+</body>
+</html>
+EOF
+
+cat > /var/www/html/test/index.html <<EOF
+<!DOCTYPE html>
+<html>
+<body>
+<p>Served from /var/www/html/test</p>
 </body>
 </html>
 EOF
