@@ -8,18 +8,20 @@ a2dissite 000-default.conf
 cat > /etc/apache2/sites-available/rewrite_remove_directory.conf <<EOF
 <VirtualHost *:80>
 
-        ServerAdmin webmaster@localhost
-        DocumentRoot /var/www/html
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/html
 
-        # currently not logging correctly.
-        LogLevel alert rewrite:trace7
-        
-        # turn rewrites on!
-        RewriteEngine On
-        RewriteRule ^/blog /index.html
+    # turn rewrites on!
+    RewriteEngine on
+    RewriteRule ^/blog /index.html
 
-        ErrorLog ${APACHE_LOG_DIR}/error.log
-        CustomLog ${APACHE_LOG_DIR}/access.log combined
+    # https://httpd.apache.org/docs/2.4/mod/core.html#loglevel
+    # to understand the stanza below:
+    # the LogLevel for modules where this vhost has served a request is "warn"
+    # the LogLevel for the rewrite module is "trace6"
+    LogLevel warn rewrite:trace6
+    ErrorLog \${APACHE_LOG_DIR}/error.log
+    CustomLog \${APACHE_LOG_DIR}/access.log combined
 
 </VirtualHost>
 EOF
