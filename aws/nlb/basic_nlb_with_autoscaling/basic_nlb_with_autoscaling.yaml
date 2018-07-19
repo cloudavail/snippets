@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing a Network Load Balancer and an Auto Scaling Group
+
+Parameters:
+
+  VPCCIDRRange:
+    Description: CIDR IP Range to be Used by VPC
+    Type: String
+    Default: 10.0.0.0/24
+
+  WebServerKeyName:
+    Description: Instance Type to be used by Web Server
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: basic-nlb-asg-key
+
+  WebServerInstanceType:
+    Description: Instance Type to be used by Web Server
+    Type: String
+    Default: t2.micro
+
+Mappings:
+
+  AWSRegion2AWSResources:
+    # https://cloud-images.ubuntu.com/locator/ec2/
+    # 18.04 lts hvm:ebs-ssd
+    us-east-1:
+      AMI: ami-1d4e7a66
+    us-west-2:
+      AMI: ami-39c28c41
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDRRange
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      # No Security Groups - they aren't supported!
+      # SecurityGroups:
+      #  - !Ref NetworkLoadBalancerSecurityGroup
+      # SubnetMappings:
+      #   - AllocationId: !GetAtt NetworkLoadBalancerEIP.AllocationId
+      #     SubnetId: !Ref PublicSubnet
+      Subnets:
+        - !Ref PublicSubnet
+      Type: network
+
+  WebServerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      # The port on which the targets receive traffic.
+      Port: 80
+      # The protocol to use for routing traffic to the targets.
+      # Protocol must match WebServerListener: Protocol
+      Protocol: TCP
+      TargetType: instance
+      VpcId: !Ref VPC
+
+  WebServerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebServerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 80
+      # for a NetworkLoadBalancer must be TLS, TCP
+      Protocol: TCP
+
+  WebServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref "AWS::Region", AMI ]
+      InstanceType: !Ref WebServerInstanceType
+      KeyName: !Ref WebServerKeyName
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash -
+          apt -y install apache2
+          cat > /var/www/html/index.html <<EOF
+          <!DOCTYPE html>
+          <html>
+          <body>
+          <h1>Testing</h1>
+          </body>
+          </html>
+          EOF
+          systemctl restart apache2
+
+  WebServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      # HealthCheckGracePeriod allows "x" seconds before the 
+      # HealthCheck begins checking the health of a given instance
+      HealthCheckGracePeriod: 60
+      HealthCheckType: ELB
+      LaunchConfigurationName: !Ref WebServerLaunchConfig
+      MaxSize: 2
+      MinSize: 2
+      TargetGroupARNs:
+        - !Ref WebServerTargetGroup
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WebServer ELB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          # I don't believe this should be CidrIp: 0.0.0.0/0
+          # but CidrIp: !Ref VPCCIDRRange
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+Outputs: {}
