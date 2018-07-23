@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-predeploy-<%= deployment_id %>
+  labels:
+    name: unmanaged-pod-<%= deployment_id %>
+    app: nginx-predeploy
+spec:
+  restartPolicy: Never
+  containers:
+    - envFrom:
+            - configMapRef:
+                name: envvariables-configmap
+      name: nginx-predeploy
+      image: ubuntu
+      command: ["sh", "-c", "echo 'Nginx Predeploy!'"]
