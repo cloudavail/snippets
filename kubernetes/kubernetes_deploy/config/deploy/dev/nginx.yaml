@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - envFrom:
+            - configMapRef:
+                name: envvariables-configmap
+          image: nginx:latest
+          name: nginx
+          ports:
+            - containerPort: 80
+              name: nginx
