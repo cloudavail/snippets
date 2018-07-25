@@ -32,19 +32,36 @@ Resources:
     Properties:
       VpcId: !Ref VPC
 
-  PublicSubnet:
+  PublicSubnet01:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: 10.0.0.0/24
+      CidrBlock: 10.0.0.0/25
       VpcId: !Ref VPC
 
-  PublicSubnetRouteTableAssociation:
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
-      SubnetId: !Ref PublicSubnet
+      SubnetId: !Ref PublicSubnet01
 
-  NetworkLoadBalancerEIP:
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  NetworkLoadBalancer01EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NetworkLoadBalancer02EIP:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
@@ -57,8 +74,10 @@ Resources:
       # SecurityGroups:
       #  - !Ref NetworkLoadBalancerSecurityGroup
       SubnetMappings:
-        - AllocationId: !GetAtt NetworkLoadBalancerEIP.AllocationId
-          SubnetId: !Ref PublicSubnet
+        - AllocationId: !GetAtt NetworkLoadBalancer01EIP.AllocationId
+          SubnetId: !Ref PublicSubnet01
+        - AllocationId: !GetAtt NetworkLoadBalancer02EIP.AllocationId
+          SubnetId: !Ref PublicSubnet02
       Type: network
 
 Outputs: {}
