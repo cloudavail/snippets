@@ -1,0 +1,11 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+  config.vm.hostname = 'redis284'
+  config.vm.network :forwarded_port, guest: 6379, host: 6379
+
+  config.vm.provision(:shell, path: './redis_284_basic_install.sh')
+
+end
