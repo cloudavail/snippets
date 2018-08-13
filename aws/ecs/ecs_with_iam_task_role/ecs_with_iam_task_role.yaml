@@ -1,0 +1,215 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for an ECS Cluster an ECS Task and an IAM Role for the ECS Task
+
+Parameters:
+
+  ContainerInstanceInstanceType:
+    Description: container Instance Instance Type
+    Type: String
+    Default: t2.micro
+
+  KeyName:
+    Description: KeyName for Key used for Accessing ECS Instances
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.micro:
+      Arch: 64HVM
+    t2.small:
+      Arch: 64HVM
+
+  AWSRegionArch2AMI:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI_launch_latest.html
+    # aws ec2 describe-images --owners amazon --filters Name=name,Values=*amazon-ecs-optimized --region us-west-2 --output table
+    us-west-2:
+      64HVM: ami-d2f489aa
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ContainerInstanceECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/instance_IAM_role.html
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ContainerInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: container Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  ContainerInstanceInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ContainerInstanceECSRole
+
+  ContainerInstanceAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      LaunchConfigurationName: !Ref ContainerInstanceLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      Tags:
+        - Key: Name
+          Value: ContainerInstance
+          PropagateAtLaunch: true
+
+  ContainerInstanceLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref ContainerInstanceInstanceProfile
+      ImageId:
+        Fn::FindInMap:
+          - AWSRegionArch2AMI
+          - Ref: AWS::Region
+          - Fn::FindInMap:
+            - AWSInstanceType2Arch
+            - Ref: ContainerInstanceInstanceType
+            - Arch
+      InstanceType: !Ref ContainerInstanceInstanceType
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref ContainerInstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+
+  ExampleTaskIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                # I was not sure if this was EC2 or ECS that should be allowed to "AssumeRole"
+                # using 
+                - ecs.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        # I chose to the utilize the AmazonEC2ReadOnlyAccess because I know that there
+        # will be EC2 instances running in order for this particular task to run
+        - arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+
+  ExampleTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: ubuntu
+          # image to use for a given container
+          # can be repository-url/image:tag
+          Image: ubuntu:bionic
+          Cpu: 1024
+          Memory: 512
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+          Essential: true
+      TaskRoleArn: !Ref ExampleTaskIAMRole
+
+Outputs: {}
