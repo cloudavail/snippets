@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: liveness
+  name: liveness-exec
+spec:
+  containers:
+    - name: liveness
+      image: ubuntu:latest
+      args:
+        - /bin/sh
+        - -c
+        - touch /tmp/healthy; sleep 10; rm -f /tmp/healthy; sleep 60
+      livenessProbe:
+        exec:
+          command:
+          - cat
+          - /tmp/healthy
+        # the defeault failureThreshold is 3 - but I want to fail immediately if the file does not exist
+        failureThreshold: 1
+        initialDelaySeconds: 5
+        periodSeconds: 5
