@@ -1,0 +1,168 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing two subnets a Redis ReplicationGroup
+
+Parameters:
+
+  RedisWriteTestInstanceType:
+    Description: Redis Write Test Instance Type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+
+  RedisWriteTestKeyPairKeyName:
+    Default: RedisWriteTest
+    Description: Redis Benchmark KeyPair KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+
+  RedisNodeType:
+    Description: Elasticache Redis Node Instance Type
+    Type: String
+    Default: cache.t2.micro
+    AllowedValues:
+      - cache.t2.micro
+
+Mappings:
+
+  AWSRegion2AWSResources:
+    # https://cloud-images.ubuntu.com/locator/ec2/
+    # 18.04 lts hvm:ebs-ssd
+    us-west-2:
+      AMI: ami-0f47ef92b4218ec09
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet0RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet0
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  RedisParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: redis3.2
+      Description: RedisParameterGroup
+      Properties:
+        cluster-enabled: "yes"
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: RedisSubnetGroup
+      SubnetIds:
+        - !Ref PublicSubnet0
+        - !Ref PublicSubnet1
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RedisSecurityGroup
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref RedisWriteTestSecurityGroup
+
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AutomaticFailoverEnabled: true
+      CacheNodeType: !Ref RedisNodeType
+      CacheParameterGroupName: !Ref RedisParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumNodeGroups: 2
+      ReplicasPerNodeGroup: 0
+      ReplicationGroupDescription: RedisReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisWriteTestLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref "AWS::Region", AMI ]
+      InstanceType: !Ref RedisWriteTestInstanceType
+      KeyName: !Ref RedisWriteTestKeyPairKeyName
+      SecurityGroups:
+        - !Ref RedisWriteTestSecurityGroup
+
+  RedisWriteTestAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref RedisWriteTestLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet0
+        - !Ref PublicSubnet1
+
+  RedisWriteTestSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RedisWrite Test Security Group
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+Outputs: {}
