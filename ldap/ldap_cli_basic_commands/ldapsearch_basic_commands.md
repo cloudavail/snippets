@@ -9,6 +9,12 @@ I've been switching between utilizing vagrant and Foxpass for exploring LDAP. I'
 
 `ldapsearch -H ldaps://ldap.foxpass.com -D 'cn=colin,dc=cloudavail,dc=com' -w $password -b 'dc=cloudavail,dc=com' 'objectClass=*'`
 
+# Connect and Query, Anonymous Bind
+
+Adding the `-x` flag will allow anonymous bind.
+
+`ldapsearch -H ldap://localhost -x`
+
 # Connect and Dump
 
 Note that I am uncertain if this is an appropriate method of dumping/backing up LDAP.
