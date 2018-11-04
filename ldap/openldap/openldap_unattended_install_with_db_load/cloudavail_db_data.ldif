@@ -1,0 +1,56 @@
+# extended LDIF
+#
+# LDAPv3
+# base <dc=cloudavail,dc=com> with scope subtree
+# filter: objectClass=*
+# requesting: ALL
+#
+
+# cloudavail.com
+dn: dc=cloudavail,dc=com
+o: cloudavail.com
+objectClass: dcObject
+objectClass: organization
+objectClass: top
+
+# people, cloudavail.com
+dn: ou=people,dc=cloudavail,dc=com
+objectClass: organizationalunit
+objectClass: top
+ou: people
+description: People from cloudavail.com
+
+# colin, people, cloudavail.com
+dn: uid=colin,ou=people,dc=cloudavail,dc=com
+cn: Colin Johnson
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+sn: Johnson
+gn: Colin
+mail: colin@cloudavail.com
+uid: colin
+# userPassword: is "test"
+userPassword: {SSHA}4zmyMS8zWMej7R2Dx3+5mesbTDlKGyG+
+
+# test, people, cloudavail.com
+dn: uid=test,ou=people,dc=cloudavail,dc=com
+cn:: IA==
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+sn: Test
+gn: Test
+mail: test@cloudavail.com
+uid: test
+# userPassword: is "test"
+userPassword: {SSHA}4zmyMS8zWMej7R2Dx3+5mesbTDlKGyG+
+
+# groups, cloudavail.com
+dn: ou=groups,dc=cloudavail,dc=com
+objectClass: organizationalunit
+objectClass: top
+ou: groups
+description: Groups from cloudavail.com

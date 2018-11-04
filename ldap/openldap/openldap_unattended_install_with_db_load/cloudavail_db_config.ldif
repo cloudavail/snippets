@@ -1,0 +1,21 @@
+# https://www.openldap.org/doc/admin24/quickstart.html
+# have seen both
+# dn: olcDatabase=mdb,cn=config
+# dn: olcDatabase={1}mdb
+dn: olcDatabase={1}mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+# have seen both
+# olcDatabase: mdb
+# dn: olcDatabase={1}mdb
+olcDatabase: mdb
+# olcDbMaxSize: not required to load an database
+# olcDbMaxSize: 1073741824
+olcSuffix: dc=cloudavail,dc=com 
+# olcRootDN: cn=admin,dc=cloudavail,dc=com = from defaults
+# have seen both cn=admin and cn=Manager
+olcRootDN: cn=admin,dc=cloudavail,dc=com
+olcRootPW: secret
+# olcDbDirectory: /var/lib/ldap = from defaults
+olcDbDirectory: /var/lib/ldap
+olcDbIndex: objectClass eq
