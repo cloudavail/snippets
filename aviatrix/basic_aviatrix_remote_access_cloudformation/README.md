@@ -21,4 +21,3 @@ This snippet will:
 
 - Aviatrix AWS Controller: https://s3-us-west-2.amazonaws.com/aviatrix-download/docs/aviatrix_aws_controller_gsg.pdf
 - IAM Roles: https://s3-us-west-2.amazonaws.com/aviatrix-download/Cloud-Controller/How+to+setup+IAM+role+for+Aviatrix.pdf
-
