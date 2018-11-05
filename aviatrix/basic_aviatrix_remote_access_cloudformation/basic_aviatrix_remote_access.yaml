@@ -335,13 +335,7 @@ Resources:
       KeyName: !Ref AviatrixServerKeyName
       InstanceType: !Ref AviatrixControllerInstanceType
       IamInstanceProfile: !Ref AviatrixControllerIAMInstanceProfile
-      # NetworkInterfaces:
-      # - DeviceIndex: '0'
-      #   GroupSet:
-      #   - Ref: AviatrixSG
-      #   SubnetId:
-      #     Ref: SubnetParam
-      SecurityGroups:
+      SecurityGroupIds:
         - !Ref AviatrixControllerSecurityGroup
       SubnetId: !Ref PublicSubnet01
 
