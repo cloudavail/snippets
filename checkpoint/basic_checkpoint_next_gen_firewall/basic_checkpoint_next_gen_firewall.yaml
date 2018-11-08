@@ -1,0 +1,146 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing four subnets and a CheckPoint NextGen Firewall.
+
+Parameters:
+
+  # TODO: move to mappings, if this stack is used regularly
+  CheckPointNextGenFirewallImageId:
+    # https://aws.amazon.com/marketplace/server/configuration?productId=441aee95-1415-4978-9c61-9f068f100e70
+    Type: AWS::EC2::Image::Id
+    Default: ami-0cbf6b8cb0655bcd6
+    Description: CheckPoint NextGen Firewall Image Id (AMI)
+
+  CheckPointNextGenFirewallInstanceType:
+    Type: String
+    Description: CheckPoint NextGen Firewall Instance Type
+    Default: m3.medium
+    # pay careful attention to the pricing as it relates to instance types
+    AllowedValues:
+      - m3.medium
+
+  CheckPointNextGenFirewallKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: checkpoint
+    Description: CheckPoint NextGen Firewall Key Name
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      Tags:
+        - Key: Name
+          Value: CheckPointNextGenFirewallVPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicSubnetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PrivateSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/26
+      VpcId: !Ref VPC
+
+  PrivateSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.64/26
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.192/26
+      VpcId: !Ref VPC
+
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet01
+
+  PrivateSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet02
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  CheckPointNextGenFirewallSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CheckPoint NextGen Firewall Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 443
+          ToPort: 443
+
+  # TODO: move from AWS::EC2::EIP to NetworkInterfaces with AssociatePublicIpAddress: true
+  CheckPointNextGenFirewallEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref CheckPointNextGenFirewallEC2Instance
+      Domain: vpc
+
+  CheckPointNextGenFirewallEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref CheckPointNextGenFirewallImageId
+      InstanceType: !Ref CheckPointNextGenFirewallInstanceType
+      KeyName: !Ref CheckPointNextGenFirewallKeyName
+      SecurityGroupIds:
+        - !Ref CheckPointNextGenFirewallSecurityGroup
+      SubnetId: !Ref PublicSubnet01
+
+Outputs: {}
