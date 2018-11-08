@@ -1,0 +1,145 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing four subnets and a Juniper VSRX.
+
+Parameters:
+
+  # TODO: move to mappings, if this stack is used regularly
+  JuniperVSRXImageId:
+    # https://aws.amazon.com/marketplace/server/configuration?productId=8987d154-c3e3-411e-8f38-aecdd80e529f
+    Type: AWS::EC2::Image::Id
+    Default: ami-0166b25179458be76
+    Description: Juniper VSRX Image Id (AMI)
+
+  JuniperVSRXInstanceType:
+    Type: String
+    Description: Juniper VSRX Instance Type
+    Default: c5.large
+    AllowedValues:
+      - c5.large
+
+  JuniperVSRXKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: junipervsrx
+    Description: Juniper VSRX Key Name
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      Tags:
+        - Key: Name
+          Value: JuniperVSRXVPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicSubnetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PrivateSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/26
+      VpcId: !Ref VPC
+
+  PrivateSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.64/26
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.192/26
+      VpcId: !Ref VPC
+
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet01
+
+  PrivateSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet02
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  JuniperVSRXSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Juniper VSRX Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 443
+          ToPort: 443
+
+  # TODO: move from AWS::EC2::EIP to NetworkInterfaces with AssociatePublicIpAddress: true
+  JuniperVSRXEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref JuniperVSRXEC2Instance
+      Domain: vpc
+
+  JuniperVSRXEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref JuniperVSRXImageId
+      InstanceType: !Ref JuniperVSRXInstanceType
+      KeyName: !Ref JuniperVSRXKeyName
+      SecurityGroupIds:
+        - !Ref JuniperVSRXSecurityGroup
+      SubnetId: !Ref PublicSubnet01
+
+Outputs: {}
