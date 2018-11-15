@@ -16,14 +16,13 @@
 ## Delete the VPC and EKS Cluster
 `aws cloudformation delete-stack --stack-name eks-introduction`
 
-# Update Security Groups
-
-1. Update EKSClusterSecurityGroup to allow port 443 in from Worker Nodes.
-2. Update EKSWorkerSecurityGroup to allow any protocol, any port from EKSWorkerSecurityGroup.
-
 # Configure kubectl
 
-## Configure the kubectl Config File
+## Configure the kubectl Config File (Tool Assistted Method)
+
+Run the following `aws eks update-kubeconfig --name $cluster_name` where $cluster_name is the name of the given cluster.
+
+## Configure the kubectl Config File (Manual Method)
 
 1. Copy the "Certificate Authority" value and paste into "Clusters:certificate-authority-data" field.
 2. Copy the "API Server Endpoint" value and paste into "server" field.
@@ -56,5 +55,5 @@ Run: `kubectl get pods --namespace kube-system`
 
 ## Node Registration Failure:
 
-1. Confirm Proper Node Registration Authentication. See step "Configure Kubernets to Allow Node Registration"
+1. Confirm Proper Node Registration Authentication. See step "Configure Kubernetes to Allow Node Registration"
 2. Review Logs `journalctl -u kubelet.service`
