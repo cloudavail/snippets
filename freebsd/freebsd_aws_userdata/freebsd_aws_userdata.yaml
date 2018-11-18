@@ -1,0 +1,110 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing a FreeBSD Instance using UserData
+
+Parameters:
+
+  FreeBSDServerInstanceType:
+    Description: FreeBSD Server Instance Type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+
+  FreeBSDServerKeyPairKeyName:
+    Default: FreeBSDServer
+    Description: FreeBSD Server KeyPair KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+
+    AWSRegion2AWSResources:
+      # AMI Mappings are from:
+      # FreeBSD 11, Official: https://aws.amazon.com/marketplace/pp/B01LWSWRED/
+      # FreeBSD 10, Official: https://aws.amazon.com/marketplace/pp/B00KSS55FY/
+      us-west-2:
+        AMI: ami-2b88821b # FreeBSD 10
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  FreeBSDServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: FreeBSDServer Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  FreeBSDServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref "AWS::Region", AMI ]
+      InstanceType: !Ref FreeBSDServerInstanceType
+      KeyName: !Ref FreeBSDServerKeyPairKeyName
+      SecurityGroups:
+        - !Ref FreeBSDServerSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/sh
+          echo $(date) >> /var/tmp/cloudinitevent.log
+
+  FreeBSDServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref FreeBSDServerLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+
+Outputs: {}
