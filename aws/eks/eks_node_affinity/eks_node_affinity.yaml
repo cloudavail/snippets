@@ -1,0 +1,308 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for testing EKS Node Affinity.
+
+Parameters:
+
+  EKSWebNodeBootstrapArguments:
+    Description: Arguments to pass to the bootstrap script. See files/bootstrap.sh in https://github.com/awslabs/amazon-eks-ami
+    Default: "--kubelet-extra-args --node-labels=nodetype=web"
+    Type: String
+
+  EKSWorkerNodeBootstrapArguments:
+    Description: Arguments to pass to the bootstrap script. See files/bootstrap.sh in https://github.com/awslabs/amazon-eks-ami
+    Default: "--kubelet-extra-args --node-labels=nodetype=worker"
+    Type: String
+
+  EKSNodeInstanceType:
+    Description: EKS Node Instance Type
+    Type: String
+    Default: t2.micro
+
+  EKSNodeImageId:
+    Type: AWS::EC2::Image::Id
+    # https://docs.aws.amazon.com/eks/latest/userguide/launch-workers.html
+    Default: ami-0f54a2f7d2e9c88b3
+    Description: AMI id for the node instances.
+
+  EKSNodeKeyName:
+    Description: EKS Keypair
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: eks
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  # Description of the EKS Service IAM Role
+  # the EKS Service IAM Role is used to allow the AWS EKS Service to manage
+  # AWS resources on your behalf
+  # https://docs.aws.amazon.com/eks/latest/userguide/service_IAM_role.html
+  EKSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+
+  EKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EKS Cluster
+      VpcId: !Ref VPC
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      # https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref EKSClusterSecurityGroup
+        SubnetIds:
+          # Specifies subnets that will host resources used in your EKS Cluster
+          # these "resources" include EC2 Instances (nodes) and Load Balancers
+          # best practice is:
+          # to use "Public" subnets for Load Balancers that allow access from the Internet
+          # to use "Private" subnets for EC2 Instances (nodes)
+          - !Ref PublicSubnet01
+          - !Ref PublicSubnet02
+      RoleArn: !GetAtt EKSServiceIAMRole.Arn
+
+  # Description of the EKS Node IAM Role
+  # the EKS Service IAM Role is used to allow the AWS EKS Node Nodes
+  # to issue issuing equivalent of aws eks describe-* commands
+  EKSNodeIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy added to resolve issue where
+        # kubelet[12269]: W0702 05:01:12.238417   12269 cni.go:171] Unable to update cni config: No networks found in /etc/cni/net.d
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        # arn:aws:iam::aws:policy/AmazonEKSNodeNodePolicy add to resolve issue where
+        # aws eks commands are required to retrieve values used in configuring files
+        # required to start the kubelet service
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        # added as this will likely be used
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  EKSNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EKSNodeIAMRole
+
+  EKSNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EKS Worker Nodes
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+      # am unclear if this is required
+      Tags:
+      - Key: !Sub kubernetes.io/cluster/${EKSCluster}
+        Value: owned
+
+  EKSClusterSecurityGroupToEKSNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn: EKSNodeSecurityGroup
+    Properties:
+      Description: Allow the EKS Control Plane to connect to EKS Nodes on 443
+      GroupId: !Ref EKSClusterSecurityGroup
+      DestinationSecurityGroupId: !Ref EKSNodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+
+  EKSClusterSecurityGroupToEKSNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn: EKSNodeSecurityGroup
+    Properties:
+      Description: Allow the EKS Control Plane to connect to EKS Nodes on 1025-65535
+      GroupId: !Ref EKSClusterSecurityGroup
+      DestinationSecurityGroupId: !Ref EKSNodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 1025
+      ToPort: 65535
+
+  EKSNodeSecurityGroupToFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow EKS Nodes to communicate with each other
+      GroupId: !Ref EKSNodeSecurityGroup
+      SourceSecurityGroupId: !Ref EKSNodeSecurityGroup
+      IpProtocol: '-1'
+      FromPort: 0
+      ToPort: 65535
+
+  EKSNodeSecurityGroupFromEKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: EKSNodeSecurityGroup
+    Properties:
+      Description: Allow EKS Cluster to accept connections from the EKS Nodes
+      GroupId: !Ref EKSClusterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref EKSNodeSecurityGroup
+
+  EKSNodeSecurityGroupFromEKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: EKSNodeSecurityGroup
+    Properties:
+      Description: Allow EKS Nodes to accept connections from the EKS Control Plane
+      GroupId: !Ref EKSNodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 1025
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
+
+  EKSWebNodeAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      LaunchConfigurationName: !Ref EKSWebNodeLaunchConfig
+      MaxSize: 2
+      MinSize: 2
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Tags:
+        - Key: !Sub kubernetes.io/cluster/${EKSCluster}
+          Value: owned
+          PropagateAtLaunch: true
+
+  EKSWebNodeLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref EKSNodeInstanceProfile
+      ImageId: !Ref EKSNodeImageId
+      InstanceType: !Ref EKSNodeInstanceType
+      KeyName: !Ref EKSNodeKeyName
+      SecurityGroups:
+        - !Ref EKSNodeSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            set -o xtrace
+            /etc/eks/bootstrap.sh ${EKSCluster} ${EKSWebNodeBootstrapArguments}
+            /opt/aws/bin/cfn-signal --exit-code $? \
+                     --stack  ${AWS::StackName} \
+                     --resource EKSNodeAutoScalingGroup \
+                     --region ${AWS::Region}
+
+  EKSWorkerNodeAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      LaunchConfigurationName: !Ref EKSWorkerNodeLaunchConfig
+      MaxSize: 2
+      MinSize: 2
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Tags:
+        - Key: !Sub kubernetes.io/cluster/${EKSCluster}
+          Value: owned
+          PropagateAtLaunch: true
+
+  EKSWorkerNodeLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref EKSNodeInstanceProfile
+      ImageId: !Ref EKSNodeImageId
+      InstanceType: !Ref EKSNodeInstanceType
+      KeyName: !Ref EKSNodeKeyName
+      SecurityGroups:
+        - !Ref EKSNodeSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            set -o xtrace
+            /etc/eks/bootstrap.sh ${EKSCluster} ${EKSWorkerNodeBootstrapArguments}
+            /opt/aws/bin/cfn-signal --exit-code $? \
+                     --stack  ${AWS::StackName} \
+                     --resource EKSNodeAutoScalingGroup \
+                     --region ${AWS::Region}
+
+Outputs:
+
+  EKSNodeIAMRoleARN:
+    Description: EKS Worker IAM Role
+    Value: !GetAtt EKSNodeIAMRole.Arn
