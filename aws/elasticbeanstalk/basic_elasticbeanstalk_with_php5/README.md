@@ -8,7 +8,7 @@ To create a basic Elastic Beanstalk stack in CloudFormation.
 # Create a BasicEBwithPHP5 Stack
 `aws cloudformation create-stack --stack-name BasicEBwithPHP5 --template-body file://basic_elasticbeanstalk_with_php5.yaml`
 
-# Create a BasicEBwithPHP5 Stack
+# Update a BasicEBwithPHP5 Stack
 `aws cloudformation update-stack --stack-name BasicEBwithPHP5 --template-body file://basic_elasticbeanstalk_with_php5.yaml`
 
 # Delete a BasicEBwithPHP5 Stack
