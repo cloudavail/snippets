@@ -71,9 +71,6 @@ Resources:
   
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
-    Properties: 
-      ApplicationName: joey-beanstalk-app-php56-4 
-      Description: php56 on t2.micro
             
   ElasticBeanstalkConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
@@ -128,7 +125,6 @@ Resources:
       SourceBundle:
         S3Bucket: joey-eb
         S3Key: joey-eb.zip
-
         
 Outputs: {}
         
