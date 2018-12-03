@@ -74,6 +74,15 @@ Resources:
     Properties: 
       ApplicationName: joey-beanstalk-app-php56-4 
       Description: php56 on t2.micro
+      
+  ElasticBeanstalkApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties: 
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      Description: joey-beanstalk-app application version
+      SourceBundle:
+        S3Bucket: joey-eb
+        S3Key: joey-eb.zip
             
   ElasticBeanstalkConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
@@ -81,6 +90,17 @@ Resources:
       ApplicationName: !Ref ElasticBeanstalkApplication
       Description: joey-beanstalk-app configuration template
       OptionSettings:
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          # Value: !Join turns the individual subnets into a string
+          Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          # grants ec2 instances a public address so EB API can connect
+          Value: true
         - Namespace: aws:autoscaling:asg
           OptionName: MinSize
           Value: '1'
@@ -90,26 +110,17 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: t2.micro
-        - Namespace: aws:elasticbeanstalk:environment
-          OptionName: EnvironmentType
-          Value: LoadBalanced
-        - Namespace: aws:ec2:vpc
-          OptionName: VPCId
-          Value: !Ref VPC
-        - Namespace: aws:ec2:vpc
-          OptionName: Subnets
-          # Value: !Join turns the individual subnets into a string
-          Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: SecurityGroups
           Value: !Ref SecurityGroup
-        - Namespace: aws:ec2:vpc
-          OptionName: AssociatePublicIpAddress
-          Value: true
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
         - Namespace: aws:elasticbeanstalk:container:php:phpini
           OptionName: document_root
           Value: /EB-HelloWorld
-      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.4 running PHP 5.6  
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.4 running PHP 5.6
+      # find most up-to-date ami for platform "aws elasticbeanstalk list-available-solution-stacks | grep PHP"  
                   
   ElasticBeanstalkEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
@@ -119,15 +130,6 @@ Resources:
       TemplateName: !Ref ElasticBeanstalkConfigurationTemplate
 #     VersionLabel:
 #       Ref: ElasticBeanstalkApplicationVersion
-
-  ElasticBeanstalkApplicationVersion:
-    Type: AWS::ElasticBeanstalk::ApplicationVersion
-    Properties: 
-      ApplicationName: !Ref ElasticBeanstalkApplication
-      Description: joey-beanstalk-app application version
-      SourceBundle:
-        S3Bucket: joey-eb
-        S3Key: joey-eb.zip
 
         
 Outputs: {}
