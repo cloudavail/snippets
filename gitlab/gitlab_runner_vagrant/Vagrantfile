@@ -1,0 +1,10 @@
+vagrantfile_api_version = '2'
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/bionic64'
+
+  config.vm.hostname = 'gitlabrunner'
+  config.vm.provision 'shell', path: './gitlab_runner.sh', env: { GITLAB_RUNNER_REGISTRATION_TOKEN: ENV['GITLAB_RUNNER_REGISTRATION_TOKEN'] }
+
+end
