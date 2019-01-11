@@ -86,8 +86,16 @@ Resources:
           OptionName: MaxSize
           Value: 1
         - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: EC2KeyName
+          Value: !Ref EC2KeyName
+        - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: t2.micro
+        # testing if ENVIRONMENT VARIABLES are set
+        # /opt/elasticbeanstalk/bin/get-config environment
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RUN_CRONS
+          Value: false
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
@@ -128,6 +136,11 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: t2.micro
+        # testing if ENVIRONMENT VARIABLES are set
+        # /opt/elasticbeanstalk/bin/get-config environment
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RUN_CRONS
+          Value: true
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
