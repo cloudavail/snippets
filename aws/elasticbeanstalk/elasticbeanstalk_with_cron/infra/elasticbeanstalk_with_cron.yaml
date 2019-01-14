@@ -117,7 +117,7 @@ Resources:
       ApplicationName: !Ref ElasticBeanstalkApplication
       Description: ElasticBeanstalk Environment for Web
       EnvironmentName: !Sub ${AWS::StackName}-Web
-      TemplateName: !Ref ElasticBeanstalkCronConfigurationTemplate
+      TemplateName: !Ref ElasticBeanstalkWebConfigurationTemplate
 
   ElasticBeanstalkCronConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
@@ -136,8 +136,6 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: t2.micro
-        # testing if ENVIRONMENT VARIABLES are set
-        # /opt/elasticbeanstalk/bin/get-config environment
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: RUN_CRONS
           Value: true
