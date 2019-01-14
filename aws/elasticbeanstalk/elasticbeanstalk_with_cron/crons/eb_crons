@@ -1,0 +1,2 @@
+# Place Cron Tasks in this File
+* * * * * root echo "Current Date and Time $(date)" >> /var/log/eb_crons_test_file.log
