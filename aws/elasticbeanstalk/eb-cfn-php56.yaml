@@ -72,14 +72,19 @@ Resources:
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
     Properties: 
-      ApplicationName: joey-beanstalk-app-php56-4 
+      ApplicationName: PHP 5.6 Application 
       Description: php56 on t2.micro
+      
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Ref ElasticBeanstalkApplication
       
   ElasticBeanstalkApplicationVersion:
     Type: AWS::ElasticBeanstalk::ApplicationVersion
     Properties: 
       ApplicationName: !Ref ElasticBeanstalkApplication
-      Description: joey-beanstalk-app application version
+      Description: PHP 5.6 Application Version
       SourceBundle:
         S3Bucket: joey-eb
         S3Key: joey-eb.zip
