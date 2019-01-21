@@ -4,7 +4,6 @@ Vagrant.configure(vagrantfile_api_version) do |config|
 
   config.vm.box = "ubuntu/bionic64"
   config.vm.hostname = 'sidekiq'
-  # config.vm.network :forwarded_port, guest: 6379, host: 6379
 
   config.vm.provision(:shell, path: './basic_sidekiq_worker.sh')
 
