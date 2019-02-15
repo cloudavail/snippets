@@ -1,0 +1,371 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  KeyName:
+    Description: ECS Container KeyName
+    Default: ecs
+    Type: String
+
+  APIServerInstanceType:
+    Description: t2 medium instance type
+    Default: t2.medium
+    AllowedValues:
+      - t2.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+    Type: String
+
+  WebServerInstanceType:
+    Description: t2 micro instance type
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+    ConstraintDescription: must be a valid EC2 instance type
+    Type: String
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.medium:
+      Arch: 64
+    t2.micro:
+      Arch: 64
+
+  AWSRegionArch2AMI:
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    us-east-1:
+      '64': ami-0796380bc6e51157f
+    us-west-2:
+      '64': ami-0af5f077b70dafc30
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  APIServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+          - AWSRegionArch2AMI
+          - Ref: AWS::Region
+          - Fn::FindInMap:
+            - AWSInstanceType2Arch
+            - Ref: APIServerInstanceType
+            - Arch
+      InstanceType: !Ref APIServerInstanceType
+      SecurityGroups:
+        - !Ref APIServerSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref ECSClusterInstanceProfile
+
+  WebServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+          - AWSRegionArch2AMI
+          - Ref: AWS::Region
+          - Fn::FindInMap:
+            - AWSInstanceType2Arch
+            - Ref: WebServerInstanceType
+            - Arch
+      InstanceType: !Ref WebServerInstanceType
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref ECSClusterInstanceProfile
+
+  APIServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - !Ref PublicSubnet01
+      - !Ref PublicSubnet02
+      LaunchConfigurationName: !Ref APIServerLaunchConfig
+      MinSize: 2
+      MaxSize: 2
+      DesiredCapacity: 2
+
+  WebServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - !Ref PublicSubnet01
+      - !Ref PublicSubnet02
+      LaunchConfigurationName: !Ref WebServerLaunchConfig
+      MinSize: 2
+      MaxSize: 2
+      DesiredCapacity: 2
+
+  APIServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: api server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        SourceSecurityGroupId: !Ref APILoadBalancerSecurityGroup
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref WebLoadBalancerSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  ECSClusterIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSClusterInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSClusterIAMRole
+
+  WebLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web ELB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  APILoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: API ELB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  APILoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      SecurityGroups:
+        - !Ref APILoadBalancerSecurityGroup
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+
+  WebLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      SecurityGroups:
+        - !Ref WebLoadBalancerSecurityGroup
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+
+  APITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        # Name required, docs say otherwise but they're wrong.
+        - Name: APITaskDefinition
+          Memory: 512
+          Image: nginx
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+
+  WebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        # Name required, docs say otherwise but they're wrong.
+        - Name: WebTaskDefinition
+          Memory: 512
+          Image: nginx
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+
+  APIService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 2
+      LoadBalancers:
+        - ContainerName: APITaskDefinition
+          ContainerPort: 80
+          LoadBalancerName: !Ref APILoadBalancer
+      Role: !Ref ECSServiceIAMRole
+      TaskDefinition: !Ref APITaskDefinition
+      PlacementConstraints:
+        - Type: memberOf
+          Expression: attribute:ecs.instance-type == t2.medium
+
+  WebECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 2
+      LoadBalancers:
+        - ContainerName: WebTaskDefinition
+          ContainerPort: 80
+          LoadBalancerName: !Ref WebLoadBalancer
+      Role: !Ref ECSServiceIAMRole
+      TaskDefinition: !Ref WebTaskDefinition
+      PlacementConstraints:
+        - Type: memberOf
+          Expression: attribute:ecs.instance-type == t2.micro
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
