@@ -1,0 +1,15 @@
+[
+  {
+    "name": "nginx",
+    "image": "nginx",
+    "cpu": 1024,
+    "memory": 512,
+    "essential": true,
+    "portMappings": [
+      {
+        "containerPort": 80,
+        "hostPort": 80
+      }
+    ]
+  }
+]
