@@ -1,0 +1,161 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create an EC2 Auto Scaling Group utilizing SSM to retreive a Parameter
+
+Parameters:
+
+  EC2ServerKeyName:
+    Description: SSM Parameter for EC2 Instance
+    Type: String
+    Default: ssm_with_autoscaling
+
+  EC2SSMParameterValue:
+    Description: SSM Parameter for EC2 Instance
+    Type: String
+    Default: FutureEndeavors
+
+  EC2ServerInstanceType:
+    Description: Instance Type to be used by Web Server
+    Type: String
+    Default: t2.micro
+
+Mappings:
+
+  AWSRegion2AWSResources:
+    # https://cloud-images.ubuntu.com/locator/ec2/
+    # 18.04 lts hvm:ebs-ssd amd64
+    us-west-2:
+      AMI: ami-005bdb005fb00e791
+
+Resources:
+
+  EC2SSMParameter:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Name: /test/ec2ssmparameter
+      Type: String
+      Value: !Ref EC2SSMParameterValue
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  EC2ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+      # Note that this should be applied by a policy that allows access to only specific SSM Parameters
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+
+  EC2ServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2ServerRole
+
+  EC2ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WebServer Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  EC2ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref EC2ServerInstanceProfile
+      ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref "AWS::Region", AMI ]
+      InstanceType: !Ref EC2ServerInstanceType
+      KeyName: !Ref EC2ServerKeyName
+      SecurityGroups:
+        - !Ref EC2ServerSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash -
+          apt update
+          apt -y install awscli
+          EC2_SSM_PARAMETER=$(aws ssm get-parameter --name "/test/ec2ssmparameter" --query Parameter.Value --output text --region us-west-2)
+          cat > /var/tmp/ssmparameter.txt <<EOF
+          ${EC2_SSM_PARAMETER}
+          EOF
+
+  EC2ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref EC2ServerLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+Outputs: {}
