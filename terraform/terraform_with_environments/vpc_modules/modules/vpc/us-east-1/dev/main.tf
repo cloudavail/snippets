@@ -29,7 +29,7 @@ resource "aws_subnet" "Public01-dev" {
   availability_zone = "${element(var.availability_zones, 0)}"
 
   tags = {
-    Name = "PublicSubnet01-dev"
+    Name = "PublicSubnet01-${var.environment}"
   }
 }
 
@@ -39,7 +39,7 @@ resource "aws_subnet" "Public02-dev" {
   availability_zone = "${element(var.availability_zones, 1)}"
 
   tags = {
-    Name = "PublicSubnet02-dev"
+    Name = "PublicSubnet02-${var.environment}"
   }
 }
 
@@ -49,7 +49,7 @@ resource "aws_subnet" "Public03-dev" {
   availability_zone = "${element(var.availability_zones, 2)}"
 
   tags = {
-    Name = "PublicSubnet03-dev"
+    Name = "PublicSubnet03-${var.environment}"
   }
 }
 
@@ -59,7 +59,7 @@ resource "aws_subnet" "Public04-dev" {
   availability_zone = "${element(var.availability_zones, 3)}"
 
   tags = {
-    Name = "PublicSubnet04-dev"
+    Name = "PublicSubnet04-${var.environment}"
   }
 }
 
@@ -69,7 +69,7 @@ resource "aws_subnet" "Public05-dev" {
   availability_zone = "${element(var.availability_zones, 4)}"
 
   tags = {
-    Name = "PublicSubnet05-dev"
+    Name = "PublicSubnet05-${var.environment}"
   }
 }
 
@@ -79,7 +79,7 @@ resource "aws_subnet" "Public06-dev" {
   availability_zone = "${element(var.availability_zones, 5)}"
 
   tags = {
-    Name = "PublicSubnet06-dev"
+    Name = "PublicSubnet06-${var.environment}"
   }
 }
 
@@ -89,7 +89,7 @@ resource "aws_subnet" "Private01-dev" {
   availability_zone = "${element(var.availability_zones, 0)}"
 
   tags = {
-    Name = "PrivateSubnet01-dev"
+    Name = "PrivateSubnet01-${var.environment}"
   }
 }
 
@@ -99,7 +99,7 @@ resource "aws_subnet" "Private02-dev" {
   availability_zone = "${element(var.availability_zones, 1)}"
 
   tags = {
-    Name = "PrivateSubnet02-dev"
+    Name = "PrivateSubnet02-${var.environment}"
   }
 }
 
@@ -109,7 +109,7 @@ resource "aws_subnet" "Private03-dev" {
   availability_zone = "${element(var.availability_zones, 2)}"
 
   tags = {
-    Name = "PrivateSubnet03-dev"
+    Name = "PrivateSubnet03-${var.environment}"
   }
 }
 
@@ -119,7 +119,7 @@ resource "aws_subnet" "Private04-dev" {
   availability_zone = "${element(var.availability_zones, 3)}"
 
   tags = {
-    Name = "PrivateSubnet04-dev"
+    Name = "PrivateSubnet04-${var.environment}"
   }
 }
 
@@ -129,7 +129,7 @@ resource "aws_subnet" "Private05-dev" {
   availability_zone = "${element(var.availability_zones, 4)}"
 
   tags = {
-    Name = "PrivateSubnet05-dev"
+    Name = "PrivateSubnet05-${var.environment}"
   }
 }
 
@@ -139,7 +139,7 @@ resource "aws_subnet" "Private06-dev" {
   availability_zone = "${element(var.availability_zones, 5)}"
 
   tags = {
-    Name = "PrivateSubnet06-dev"
+    Name = "PrivateSubnet06-${var.environment}"
   }
 }
 
@@ -149,7 +149,7 @@ resource "aws_subnet" "NAT01-dev" {
   availability_zone = "${element(var.availability_zones, 0)}"
 
   tags = {
-    Name = "NATSubnet01-dev"
+    Name = "NATSubnet01-${var.environment}"
   }
 }
 
@@ -159,7 +159,7 @@ resource "aws_subnet" "NAT02-dev" {
   availability_zone = "${element(var.availability_zones, 1)}"
 
   tags = {
-    Name = "NATSubnet02-dev"
+    Name = "NATSubnet02-${var.environment}"
   }
 }
 
@@ -169,7 +169,7 @@ resource "aws_subnet" "NAT03-dev" {
   availability_zone = "${element(var.availability_zones, 2)}"
 
   tags = {
-    Name = "NATSubnet03-dev"
+    Name = "NATSubnet03-${var.environment}"
   }
 }
 
@@ -179,7 +179,7 @@ resource "aws_subnet" "NAT04-dev" {
   availability_zone = "${element(var.availability_zones, 3)}"
 
   tags = {
-    Name = "NATSubnet04-dev"
+    Name = "NATSubnet04-${var.environment}"
   }
 }
 
@@ -189,7 +189,7 @@ resource "aws_subnet" "NAT05-dev" {
   availability_zone = "${element(var.availability_zones, 4)}"
 
   tags = {
-    Name = "NATSubnet05-dev"
+    Name = "NATSubnet05-${var.environment}"
   }
 }
 
@@ -199,7 +199,7 @@ resource "aws_subnet" "NAT06-dev" {
   availability_zone = "${element(var.availability_zones, 5)}"
 
   tags = {
-    Name = "NATSubnet06-dev"
+    Name = "NATSubnet06-${var.environment}"
   }
 }
 
@@ -207,7 +207,7 @@ resource "aws_internet_gateway" "gw-dev" {
   vpc_id = "${aws_vpc.cloudavail-dev.id}"
 
   tags = {
-    Name = "cloudavail-dev"
+    Name = "cloudavail-${var.environment}"
   }
 }
 
@@ -216,7 +216,7 @@ resource "aws_nat_gateway" "NATgw-dev" {
   subnet_id     = "${aws_subnet.Public01-dev.id}"
 
   tags = {
-    Name = "gw NAT-dev"
+    Name = "gw NAT-${var.environment}"
   }
 }
 
@@ -229,7 +229,7 @@ resource "aws_route_table" "PublicRoute-dev" {
   }
 
   tags = {
-    Name = "PublicRoute-dev"
+    Name = "PublicRoute-${var.environment}"
   }
 }
 
@@ -237,7 +237,7 @@ resource "aws_route_table" "PrivateRoute-dev" {
   vpc_id = "${aws_vpc.cloudavail-dev.id}"
 
   tags = {
-    Name = "PrivateRoute-dev"
+    Name = "PrivateRoute-${var.environment}"
   }
 }
 

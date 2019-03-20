@@ -29,7 +29,7 @@ resource "aws_subnet" "Public01-prod" {
   availability_zone = "${element(var.availability_zones, 0)}"
 
   tags = {
-    Name = "PublicSubnet01-prod"
+    Name = "PublicSubnet01-${var.environment}"
   }
 }
 
@@ -39,7 +39,7 @@ resource "aws_subnet" "Public02-prod" {
   availability_zone = "${element(var.availability_zones, 1)}"
 
   tags = {
-    Name = "PublicSubnet02-prod"
+    Name = "PublicSubnet02-${var.environment}"
   }
 }
 
@@ -49,7 +49,7 @@ resource "aws_subnet" "Public03-prod" {
   availability_zone = "${element(var.availability_zones, 2)}"
 
   tags = {
-    Name = "PublicSubnet03-prod"
+    Name = "PublicSubnet03-${var.environment}"
   }
 }
 
@@ -59,7 +59,7 @@ resource "aws_subnet" "Public04-prod" {
   availability_zone = "${element(var.availability_zones, 3)}"
 
   tags = {
-    Name = "PublicSubnet04-prod"
+    Name = "PublicSubnet04-${var.environment}"
   }
 }
 
@@ -69,7 +69,7 @@ resource "aws_subnet" "Public05-prod" {
   availability_zone = "${element(var.availability_zones, 4)}"
 
   tags = {
-    Name = "PublicSubnet05-prod"
+    Name = "PublicSubnet05-${var.environment}"
   }
 }
 
@@ -79,7 +79,7 @@ resource "aws_subnet" "Public06-prod" {
   availability_zone = "${element(var.availability_zones, 5)}"
 
   tags = {
-    Name = "PublicSubnet06-prod"
+    Name = "PublicSubnet06-${var.environment}"
   }
 }
 
@@ -89,7 +89,7 @@ resource "aws_subnet" "Private01-prod" {
   availability_zone = "${element(var.availability_zones, 0)}"
 
   tags = {
-    Name = "PrivateSubnet01-prod"
+    Name = "PrivateSubnet01-${var.environment}"
   }
 }
 
@@ -99,7 +99,7 @@ resource "aws_subnet" "Private02-prod" {
   availability_zone = "${element(var.availability_zones, 1)}"
 
   tags = {
-    Name = "PrivateSubnet02-prod"
+    Name = "PrivateSubnet02-${var.environment}"
   }
 }
 
@@ -109,7 +109,7 @@ resource "aws_subnet" "Private03-prod" {
   availability_zone = "${element(var.availability_zones, 2)}"
 
   tags = {
-    Name = "PrivateSubnet03-prod"
+    Name = "PrivateSubnet03-${var.environment}"
   }
 }
 
@@ -119,7 +119,7 @@ resource "aws_subnet" "Private04-prod" {
   availability_zone = "${element(var.availability_zones, 3)}"
 
   tags = {
-    Name = "PrivateSubnet04-prod"
+    Name = "PrivateSubnet04-${var.environment}"
   }
 }
 
@@ -129,7 +129,7 @@ resource "aws_subnet" "Private05-prod" {
   availability_zone = "${element(var.availability_zones, 4)}"
 
   tags = {
-    Name = "PrivateSubnet05-prod"
+    Name = "PrivateSubnet05-${var.environment}"
   }
 }
 
@@ -139,7 +139,7 @@ resource "aws_subnet" "Private06-prod" {
   availability_zone = "${element(var.availability_zones, 5)}"
 
   tags = {
-    Name = "PrivateSubnet06-prod"
+    Name = "PrivateSubnet06-${var.environment}"
   }
 }
 
@@ -149,7 +149,7 @@ resource "aws_subnet" "NAT01-prod" {
   availability_zone = "${element(var.availability_zones, 0)}"
 
   tags = {
-    Name = "NATSubnet01-prod"
+    Name = "NATSubnet01-${var.environment}"
   }
 }
 
@@ -159,7 +159,7 @@ resource "aws_subnet" "NAT02-prod" {
   availability_zone = "${element(var.availability_zones, 1)}"
 
   tags = {
-    Name = "NATSubnet02-prod"
+    Name = "NATSubnet02-${var.environment}"
   }
 }
 
@@ -169,7 +169,7 @@ resource "aws_subnet" "NAT03-prod" {
   availability_zone = "${element(var.availability_zones, 2)}"
 
   tags = {
-    Name = "NATSubnet03-prod"
+    Name = "NATSubnet03-${var.environment}"
   }
 }
 
@@ -179,7 +179,7 @@ resource "aws_subnet" "NAT04-prod" {
   availability_zone = "${element(var.availability_zones, 3)}"
 
   tags = {
-    Name = "NATSubnet04-prod"
+    Name = "NATSubnet04-${var.environment}"
   }
 }
 
@@ -189,7 +189,7 @@ resource "aws_subnet" "NAT05-prod" {
   availability_zone = "${element(var.availability_zones, 4)}"
 
   tags = {
-    Name = "NATSubnet05-prod"
+    Name = "NATSubnet05-${var.environment}"
   }
 }
 
@@ -199,7 +199,7 @@ resource "aws_subnet" "NAT06-prod" {
   availability_zone = "${element(var.availability_zones, 5)}"
 
   tags = {
-    Name = "NATSubnet06-prod"
+    Name = "NATSubnet06-${var.environment}"
   }
 }
 
@@ -207,7 +207,7 @@ resource "aws_internet_gateway" "gw-prod" {
   vpc_id = "${aws_vpc.cloudavail-prod.id}"
 
   tags = {
-    Name = "cloudavail-prod"
+    Name = "cloudavail-${var.environment}"
   }
 }
 
@@ -216,7 +216,7 @@ resource "aws_nat_gateway" "NATgw-prod" {
   subnet_id     = "${aws_subnet.Public01-prod.id}"
 
   tags = {
-    Name = "gw NAT-prod"
+    Name = "gw NAT-${var.environment}"
   }
 }
 
@@ -229,7 +229,7 @@ resource "aws_route_table" "PublicRoute-prod" {
   }
 
   tags = {
-    Name = "PublicRoute-prod"
+    Name = "PublicRoute-${var.environment}"
   }
 }
 
@@ -237,7 +237,7 @@ resource "aws_route_table" "PrivateRoute-prod" {
   vpc_id = "${aws_vpc.cloudavail-prod.id}"
 
   tags = {
-    Name = "PrivateRoute-prod"
+    Name = "PrivateRoute-${var.environment}"
   }
 }
 
