@@ -1,0 +1,9 @@
+vagrantfile_api_version = '2'
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/xenial64'
+  config.vm.hostname = 'datadoglogs'
+  config.vm.provision(:shell, path: './datadog_logs_install.sh', env: { DD_API_KEY: ENV['DD_API_KEY'] })
+
+end
