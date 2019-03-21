@@ -1,3 +1,4 @@
+# s3 bucket should reflect region "east/west"
 # s3 bucket key should reflect environment "dev/prod"
 terraform {
   backend "s3" {
@@ -20,5 +21,6 @@ module "vpc" {
   private_subnets    = "${var.private_subnets}"
   nat_subnets        = "${var.nat_subnets}"
   public_subnets     = "${var.public_subnets}"
-  availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"]
+  availability_zones = "${var.availability_zones}"
+  az_count           = "${var.az_count}"
 }

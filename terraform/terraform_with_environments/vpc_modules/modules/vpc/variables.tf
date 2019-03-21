@@ -31,3 +31,8 @@ variable "nat_subnets" {
   description = "IP range for public subnets"
   type        = "list"
 }
+
+variable "az_count" {
+  description = "number of azs in each region"
+  type        = "list"
+}

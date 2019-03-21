@@ -21,7 +21,6 @@ module "vpc" {
   private_subnets = "${var.private_subnets}"
   nat_subnets     = "${var.nat_subnets}"
   public_subnets  = "${var.public_subnets}"
-
-  #  public_subnet_cidr  = ["10.40.0.0/24", "10.40.1.0/24", "10.40.2.0/24", "10.40.3.0/24"]
-  availability_zones = ["us-west-2a", "us-west-2b", "us-west-2c", "us-west-2d"]
+  availability_zones = "${var.availability_zones}"
+  az_count           = "${var.az_count}"
 }

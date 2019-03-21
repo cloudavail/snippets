@@ -32,3 +32,15 @@ variable "nat_subnets" {
   type        = "list"
   default     = ["10.90.6.0/25", "10.90.8.0/25", "10.90.10.0/25", "10.90.12.0/25", "10.90.14.0/25", "10.90.16.0/25"]
 }
+
+variable "availability_zones" {
+  description = "list of availablility zones in us-east-1"
+  type        = "list"
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e", "us-east-1f"]
+}
+
+variable "az_count" {
+  description = "number of azs in us-east-1"
+  type        = "list"
+  default     = ["1", "2", "3", "4", "5", "6"]
+}
