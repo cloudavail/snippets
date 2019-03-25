@@ -14,13 +14,13 @@ provider "aws" {
 }
 
 module "vpc" {
-  source          = "../../modules/vpc"
-  vpc_cidr_block  = "${var.vpc_cidr_block}"
-  aws_region      = "${var.aws_region}"
-  environment     = "${var.environment}"
-  private_subnets = "${var.private_subnets}"
-  nat_subnets     = "${var.nat_subnets}"
-  public_subnets  = "${var.public_subnets}"
+  source             = "../../modules/vpc"
+  vpc_cidr_block     = "${var.vpc_cidr_block}"
+  aws_region         = "${var.aws_region}"
+  environment        = "${var.environment}"
+  private_subnets    = "${var.private_subnets}"
+  nat_subnets        = "${var.nat_subnets}"
+  public_subnets     = "${var.public_subnets}"
   availability_zones = "${var.availability_zones}"
   az_count           = "${var.az_count}"
 }

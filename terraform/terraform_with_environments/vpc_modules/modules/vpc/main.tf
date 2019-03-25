@@ -22,7 +22,7 @@ resource "aws_subnet" "public" {
   availability_zone = "${element(var.availability_zones, count.index)}"
 
   tags = {
-    Name = "PublicSubnet-${element(var.az_count, count.index)}"
+    Name = "PublicSubnet${element(var.az_count, count.index)}-${var.environment}"
   }
 }
 
@@ -34,7 +34,7 @@ resource "aws_subnet" "private" {
   availability_zone = "${element(var.availability_zones, count.index)}"
 
   tags = {
-    Name = "PrivateSubnet-${element(var.az_count, count.index)}"
+    Name = "PrivateSubnet${element(var.az_count, count.index)}-${var.environment}"
   }
 }
 
@@ -46,7 +46,7 @@ resource "aws_subnet" "nat" {
   availability_zone = "${element(var.availability_zones, count.index)}"
 
   tags = {
-    Name = "NATSubnet-${element(var.az_count, count.index)}"
+    Name = "NATSubnet${element(var.az_count, count.index)}-${var.environment}"
   }
 }
 
