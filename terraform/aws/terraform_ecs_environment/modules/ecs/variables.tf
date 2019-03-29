@@ -8,7 +8,7 @@ variable "instance_type" {
 
 variable "key_pair" {
   type    = "string"
-  default = "joey-cloudavail"
+  default = "ops"
 }
 
 variable "image_id" {
