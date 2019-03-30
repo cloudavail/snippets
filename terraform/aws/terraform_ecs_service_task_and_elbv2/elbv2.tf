@@ -16,13 +16,19 @@ resource "aws_security_group" "ecs_internet_facing_elb_security_group" {
   vpc_id = "${aws_vpc.vpc.id}"
 }
 
-resource "aws_lb_listener" "ecs_internet_facing_elb_listener" {
+resource "aws_lb_listener" "ecs_internet_facing_elb_http_listener" {
   load_balancer_arn = "${aws_lb.ecs_internet_facing_elb.arn}"
   port              = "80"
   protocol          = "HTTP"
+
   default_action {
-    type             = "forward"
-    target_group_arn = "${aws_lb_target_group.nginx_target_group.arn}"
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Fixed Response Content"
+      status_code  = "200"
+    }
   }
 }
 

@@ -26,12 +26,11 @@ resource "aws_security_group" "ecs_cluster_node_security_group" {
   }
 
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    security_groups = [ "${aws_security_group.ecs_internet_facing_elb_security_group.id}" ]
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = ["${aws_security_group.ecs_internet_facing_elb_security_group.id}"]
   }
-
 
   vpc_id = "${aws_vpc.vpc.id}"
 }
