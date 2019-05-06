@@ -1,5 +1,6 @@
 #!/bin/bash -
 
+# the values below are randomly generated
 AWS_DEV_ACCESS_KEY="AKWMNLRLSXQUKPRYUELL"
 AWS_STG_ACCESS_KEY="AKRCESAQWTFQWJLHTQAU"
 
