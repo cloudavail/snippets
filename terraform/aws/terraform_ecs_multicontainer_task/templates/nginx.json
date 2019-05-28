@@ -1,0 +1,28 @@
+[
+    {
+        "Name": "nginx-frontend",
+        "Image": "nginx",
+        "Cpu": 256,
+        "Memory": 256,
+        "PortMappings": [
+            {
+                "ContainerPort": 80,
+                "HostPort": 80
+            }
+        ],
+        "Essential": true
+    },
+    {
+        "Name": "nginx-backend",
+        "Image": "nginx",
+        "Cpu": 256,
+        "Memory": 256,
+        "PortMappings": [
+            {
+                "ContainerPort": 80,
+                "HostPort": 8080
+            }
+        ],
+        "Essential": true
+    }
+]
