@@ -1,0 +1,57 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create an IAM user that allows instances to only be launched in a particular subnet.
+
+Parameters:
+
+  IAMUserWithSelfManageMFAUserPassword:
+    Type: String
+    Description: AWS Console password for the IAM User
+
+Mappings: {}
+
+Resources:
+
+  IAMUserWithSelfManageMFA:
+    Type: AWS::IAM::User
+    Properties:
+      LoginProfile:
+        Password: !Ref IAMUserWithSelfManageMFAUserPassword
+      Path: /
+      # policy below is taken from https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_my-sec-creds-self-manage.html
+      Policies:
+        - PolicyName: IAMUserWithSelfManageMFAPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # resolves issue with "User: arn:aws:iam::187376578462:user/IAMUserWithManageMFA is not authorized to perform: iam:ListVirtualMFADevices on resource: arn:aws:iam::187376578462:mfa/"
+              - Effect: Allow
+                Action:
+                  - iam:ListVirtualMFADevices
+                Resource:
+                  # it is believed we would have preferred arn:aws:iam::*:mfa/${aws:username}
+                  - arn:aws:iam::*:mfa/*
+              - Effect: Allow
+                Action:
+                  - iam:CreateVirtualMFADevice
+                  - iam:DeleteVirtualMFADevice
+                Resource:
+                  - arn:aws:iam::*:mfa/${aws:username}
+              - Effect: Allow
+                Action:
+                  - iam:DeactivateMFADevice
+                  - iam:EnableMFADevice
+                  - iam:ListMFADevices
+                  - iam:ResyncMFADevice
+                Resource:
+                  - arn:aws:iam::*:user/${aws:username}
+      UserName: IAMUserWithManageMFA
+
+Outputs:
+
+  # Note that outputting the password is not ideal outside of testing scenarios
+  IAMUserWithSelfManageMFA:
+    Description: AWS Console Password for the IAM User
+    Value: !Ref IAMUserWithSelfManageMFAUserPassword
