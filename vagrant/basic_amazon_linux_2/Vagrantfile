@@ -1,0 +1,10 @@
+vagrantfile_api_version = 2
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  # there are multiple 
+
+  config.vm.box = 'bento/amazonlinux-2'
+  config.vm.provision(:shell, path: './shell_provision_script.sh')
+
+end
