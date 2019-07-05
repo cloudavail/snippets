@@ -1,0 +1,259 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  ECSServerInstanceType:
+    Description: ECS Server Instance Type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+
+  ECSServerKeyName:
+    Description: ECS Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ECSServerKey
+
+Mappings:
+
+  AWSRegion2AWSResources:
+    # from https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    us-west-2:
+      AMI: ami-00e0090ac21971297  
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSServerIAMRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ECSServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt ECSServerInstanceProfile.Arn
+        ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref 'AWS::Region', AMI ]
+        InstanceType: !Ref ECSServerInstanceType
+        KeyName: !Ref ECSServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt ECSServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            # the only required logging-driver is json-file but we've elected to stay with defaults
+            # ECS_AVAILABLE_LOGGING_DRIVERS=["none", "awslogs", "syslog", "json-file"]
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+            mkdir -p /etc/fluentd/
+            cat > /etc/fluentd/fluent.conf <<EOF
+            <source>
+              @type tail
+              # /var/lib/docker/containers/* contains directories named per container
+              # example: /var/lib/docker/containers/0f66e53a664aa90b1c708710730bcf5aea6796b34ba82b3ae5893fec0c7659f7
+              # inside this container is a json format log file named 
+              # 0f66e53a664aa90b1c708710730bcf5aea6796b34ba82b3ae5893fec0c7659f7-json.log
+              path /var/lib/docker/containers/*/*-json.log
+              pos_file /fluentd/fluentd-containers.log.pos
+              tag docker.*
+              format json
+            </source>
+            <filter docker.**>
+              @type record_transformer
+              enable_ruby
+              <record>
+                # if available, this extracts ["attrs"]["CONTAINER_NAME"]
+                container_name \${!record.dig("attrs","CONTAINER_NAME")}
+              </record>
+            </filter>
+            <match docker.** >
+              @type file
+              path /fluentd/log/
+            </match>
+            EOF
+
+  ECSServerScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ECSServerLaunchTemplate
+        Version: !GetAtt ECSServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  FluentdTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: fluentd
+          Memory: 256
+          MountPoints:
+            # the ContainerPath: /fluentd/etc instead of ContainerPath: /etc/fluentd/
+            # is intentional
+            - ContainerPath: /fluentd/etc
+              ReadOnly: true
+              SourceVolume: etc_fluentd
+            - ContainerPath: /var/lib/docker/containers
+              ReadOnly: true
+              SourceVolume: var_lib_docker_containers
+          Name: fluentd
+          # running as User: root executes the "fluentd" binary as root user (default would be "fluentd")
+          # this allows access to directories (such as /var/lib/docker/containers)
+          # that are mounted in from the host filesystem to be read by the fluentd process
+          # https://github.com/fluent/fluentd-docker-image/issues/48
+          User: root
+      Volumes:
+        - Host:
+            SourcePath: /etc/fluentd
+          Name: etc_fluentd
+        - Host:
+            SourcePath: /var/lib/docker/containers
+          Name: var_lib_docker_containers
+
+  FluentdService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      SchedulingStrategy: DAEMON
+      TaskDefinition: !Ref FluentdTaskDefinition
+
+  NginxService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      # note that running nginx with SchedulingStrategy: DAEMON
+      # is sufficent for running this particular test
+      # but is done only for demonstration purposes
+      SchedulingStrategy: DAEMON
+      TaskDefinition: !Ref NginxTaskDefinition
+
+  NginxTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - # use DockerLabels to define log entries that
+          # will be available to the logdriver
+          DockerLabels:
+            CONTAINER_NAME: nginx
+          Environment:
+            - Name: ENVIRONMENT
+              Value: test
+          Image: nginx
+          LogConfiguration:
+            LogDriver: json-file
+            Options:
+              # options makes values from either "DockerLabels" or "Environment"
+              # available as "attributes" in the log entry
+              # these attributes can be processed by fluentd
+              env: ENVIRONMENT
+              labels: CONTAINER_NAME
+          Memory: 256
+          Name: nginx
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
