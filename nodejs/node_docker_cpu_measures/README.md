@@ -26,9 +26,9 @@ CPU Cores: 2
 docker run --cpu-shares 1024 --volume $(pwd)/cpu_count.js:/cpu_count.js node cpu_count.js
 ```
 
-# Modifying CPUS Argument
+# Outcome
 
-
+The result of test reveals that changing the CPU Count or CPU Shares has no impact on the value returned by `os.cpus().length` within node.js.
 
 # References:
 
