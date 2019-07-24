@@ -1,5 +1,6 @@
 # Overview
 
+This snippet serves to aid the understanding of different "CPU" arguments on the value returned by `os.cpus().length`.
 
 # Run Docker Node Container
 
