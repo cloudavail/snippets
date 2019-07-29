@@ -10,3 +10,9 @@ You'll need to export your NewRelic API key and then you'll need to run the pyth
 export NEW_RELIC_API_KEY='<insert key here>'
 ./newrelic-api.py
 ```
+
+# Result
+
+The result should look akin to the following:
+
+`{u'policies': [{u'updated_at': 1553809760444, u'incident_preference': u'PER_CONDITION_AND_TARGET', u'created_at': 1553809760444, u'id': 422985, u'name': u'Management Policy'}]}`
