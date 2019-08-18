@@ -12,7 +12,7 @@ The CloudFormation file `basic_squid_infrastructure.json` in this directory will
 `keyname=squid`
 `region=eu-west-1`
 
-`aws cloudformation create-stack --stack-name SquidProxy --template-body file://basic_squid_infrastructure.json --parameters ParameterKey=SquidProxyKeyName,ParameterValue=$keyname --region $region`
+`aws cloudformation create-stack --stack-name SquidProxy --template-body file://basic_squid_infrastructure.yaml --parameters ParameterKey=SquidProxyKeyName,ParameterValue=$keyname --region $region`
 
 # Testing SquidProxy
 
