@@ -11,6 +11,5 @@ The CloudFormation file `basic_elasticsearch_no_vpc.yaml` in this directory will
 # Update Stack
 `aws cloudformation update-stack --stack-name BasicElasticsearchNoVPC --template-body file://basic_elasticsearch_no_vpc.yaml`
 
-
 # Delete Stack
 `aws cloudformation delete-stack --stack-name BasicElasticsearchNoVPC`
