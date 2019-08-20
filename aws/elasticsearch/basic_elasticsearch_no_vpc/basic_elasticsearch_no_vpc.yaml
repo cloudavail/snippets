@@ -1,0 +1,46 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create an Elasticsearch Cluster
+
+Parameters:
+
+  ESDomainAllowedIP:
+    Type: String
+    Default: 73.71.218.187
+
+Mappings: {}
+
+Resources:
+
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      AccessPolicies: 
+        Version: 2012-10-17
+        Statement: 
+          - Effect: Allow
+            Principal: "*"
+            Action: es:*
+            Resource: "*"
+            Condition:
+              IpAddress:
+                aws:SourceIp:
+                  - !Ref ESDomainAllowedIP
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 20
+        VolumeType: gp2
+      ElasticsearchClusterConfig:
+        # DedicatedMasterCount:
+        DedicatedMasterEnabled: false
+        # DedicatedMasterType: 
+        InstanceCount: 1
+        InstanceType: t2.small.elasticsearch
+        ZoneAwarenessEnabled: false
+      EncryptionAtRestOptions:
+        Enabled: false
+      ElasticsearchVersion: 7.1
+
+Outputs: {}
