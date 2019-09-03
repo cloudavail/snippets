@@ -1,0 +1,20 @@
+{
+    "builders": [{
+    "type": "amazon-ebs",
+    "source_ami": "ami-09a3d8a7177216dcf",
+    "region": "us-west-2",
+    "instance_type": "t2.micro",
+    "ssh_username": "ubuntu",
+    "subnet_id": "subnet-04ed6b67c74bda700",
+    "vpc_id": "vpc-023a1131d3d6ccf40",
+    "ami_name": "packer_ubuntu {{timestamp}}",
+    "associate_public_ip_address": "true",
+    "encrypt_boot": "true"
+    }],
+    "provisioners": [
+        {
+            "type": "shell",
+            "inline": "echo \"Test\" > /var/tmp/testfile.txt"
+        }
+    ]
+}
