@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: RDS with IAM Authentication
+Parameters: {}
+
+Resources:
+# VPC and internet gateway
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+# public internet route and public subnets
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: !Sub Public-01
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: !Sub Public-02
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01 
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DBSubnetGroup for DBInstance
+      SubnetIds: 
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access via port 3306
+      SecurityGroupIngress:
+        - FromPort: 3306
+          ToPort: 3306
+          IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      BackupRetentionPeriod: 0
+      DBInstanceClass: db.t2.micro
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      EnableIAMDatabaseAuthentication: true
+      Engine: MySQL
+      MasterUsername: test
+      MasterUserPassword: test1234
+      PubliclyAccessible: true
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      Port: 3306
