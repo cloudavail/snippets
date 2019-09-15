@@ -1,0 +1,174 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing an ELB that forwards traffic to EC2 Instances
+  running Apache with a self-signed cert.
+
+Parameters:
+  webServerInstanceType:
+    Description: web Server EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+
+Mappings:
+
+  AWSInstanceType2Arch:
+    t2.micro:
+      Arch: '64'
+
+  AWSRegionArch2AMI:
+    us-east-1:
+      '64': ami-f652979b
+    us-west-1:
+      '64': ami-08490c68
+    us-west-2:
+      '64': ami-d06a90b0
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  webServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: webServerInstanceType
+          - Arch
+      SecurityGroups:
+        - !Ref webServerSecurityGroup
+      InstanceType: !Ref webServerInstanceType
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - ''
+          - - '#!/bin/bash -
+
+              '
+            - 'apt -y update
+
+              '
+            - 'apt -y install apache2
+
+              '
+            - 'a2enmod ssl
+
+              '
+            - 'a2ensite default-ssl.conf
+
+              '
+            - service apache2 reload
+
+  webServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId:
+            Ref: webServerELBSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  webServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref PublicSubnet
+      LaunchConfigurationName:
+        Ref: webServerLaunchConfig
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      LoadBalancerNames:
+        - !Ref webServerELB
+  webServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server ELB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  webServerELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+        - !Ref PublicSubnet
+      SecurityGroups:
+        - !Ref webServerELBSecurityGroup
+      HealthCheck:
+        Target: TCP:443
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+      Listeners:
+        - Protocol: HTTP
+          LoadBalancerPort: 80
+          InstanceProtocol: HTTPS
+          InstancePort: 443
+
+Outputs: {}
