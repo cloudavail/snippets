@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing two subnets a Redis ReplicationGroup
+
+Parameters:
+
+  RedisInstanceType:
+    Description: elasticache Redis Node Instance Type
+    Type: String
+    Default: r5.xlarge
+    AllowedValues:
+      - r5.xlarge
+      - r5.large
+
+  RedisNodeType:
+    Description: elasticache Redis Node Instance Type
+    Type: String
+    Default: cache.r5.xlarge
+    AllowedValues:
+      - cache.r5.xlarge
+      - cache.r5.large
+
+Mappings:
+
+  AWSRegion2AWSResources:
+      # https://cloud-images.ubuntu.com/locator/ec2/
+      # 18.04 lts hvm:ebs-ssd
+    us-east-1:
+      AMI: ami-024582e76075564db
+    us-west-2:
+      AMI: ami-09c08e9cd8d9c1b93 
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicSubnetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs ""]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs ""]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  RedisParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: redis3.2
+      Description: RedisParameterGroup
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: RedisSubnetGroup
+      SubnetIds:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RedisSecurityGroup
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref RedisBenchmarkSecurityGroup
+
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AutomaticFailoverEnabled: true
+      CacheNodeType: !Ref RedisNodeType
+      CacheParameterGroupName: !Ref RedisParameterGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: 3.2.4
+      NumCacheClusters: 2
+      ReplicationGroupDescription: RedisReplicationGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+
+  RedisBenchmarkLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref "AWS::Region", AMI ]
+      InstanceType: !Ref RedisInstanceType
+      KeyName: randy
+      SecurityGroups:
+        - !Ref RedisBenchmarkSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash -
+          # apt -y update required to make package redis available
+          apt -y update
+          apt -y install redis
+
+  RedisBenchmarkAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref RedisBenchmarkLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  RedisBenchmarkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Redis ELB Security Group
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
