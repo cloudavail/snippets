@@ -1,0 +1,182 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  CodeDeployServerInstanceType:
+    Description: Code Deploy Server Instance Type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+
+  CodeDeployServerKeyName:
+    Description: Code Deploy Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: codedeploy
+
+  CodeDeployAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  CodeDeployServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+
+  CodeDeployS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cloudavail-codedeploys3bucket
+
+  CodeDeployHelloWorldApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: HelloWorld
+      ComputePlatform: Server
+
+  CodeDeployServerDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties: 
+      ApplicationName: !Ref CodeDeployHelloWorldApplication
+      AutoScalingGroups: 
+        - !Ref CodeDeployServerAutoScalingGroup
+      DeploymentGroupName: CodeDeployServerDeploymentGroup
+      ServiceRoleArn: !GetAtt CodeDeployServiceIAMRole.Arn
+
+  CodeDeployServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      # this policy is, likely, too broad for many customers needs
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy
+
+  CodeDeployServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CodeDeployServerIAMRole
+
+  CodeDeployServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Code Deploy Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  CodeDeployServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt CodeDeployServerInstanceProfile.Arn
+        ImageId: !Ref CodeDeployAmiId
+        InstanceType: !Ref CodeDeployServerInstanceType
+        KeyName: !Ref CodeDeployServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt CodeDeployServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-linux.html
+            yum update
+            yum -y install ruby
+            yum -y install wget
+            cd /home/ec2-user
+            wget https://aws-codedeploy-us-west-2.s3.us-west-2.amazonaws.com/latest/install
+            chmod +x ./install
+            ./install auto
+            yum -y install httpd
+
+  CodeDeployServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref CodeDeployServerLaunchTemplate
+        Version: !GetAtt CodeDeployServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
