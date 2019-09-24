@@ -1,0 +1,63 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Create a VPC and resources for testing Security Groups
+
+Conditions:
+
+  IsPrd: !Equals [ !Ref Environment, prd ]
+
+Parameters:
+
+  Environment:
+    Type: String
+    Description: Environment
+    AllowedValues:
+      - dev
+      - prd
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WebServer Security Group
+      SecurityGroupIngress: !If
+        - IsPrd
+        # values below are if "IsPrd" is true
+        - - CidrIp: 0.0.0.0/0
+            FromPort: 80
+            IpProtocol: tcp
+            ToPort: 80
+        # values below are if "IsPrd" is false
+        - - CidrIp: 73.71.218.187/32
+            FromPort: 80
+            IpProtocol: tcp
+            ToPort: 80
+          - CidrIp: 3.89.136.57/32
+            FromPort: 80
+            IpProtocol: tcp
+            ToPort: 80
+      VpcId: !Ref VPC
+
+Outputs: {}
