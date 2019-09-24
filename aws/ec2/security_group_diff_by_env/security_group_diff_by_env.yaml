@@ -44,10 +44,12 @@ Resources:
       GroupDescription: WebServer Security Group
       SecurityGroupIngress: !If
         - IsPrd
+        # values below are if "IsPrd" is true
         - - CidrIp: 0.0.0.0/0
             FromPort: 80
             IpProtocol: tcp
             ToPort: 80
+        # values below are if "IsPrd" is false
         - - CidrIp: 73.71.218.187/32
             FromPort: 80
             IpProtocol: tcp
