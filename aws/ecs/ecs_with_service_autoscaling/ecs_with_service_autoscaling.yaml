@@ -203,15 +203,11 @@ Resources:
       MaxCapacity: 4
       MinCapacity: 1
       ResourceId: !Sub service/${ECSCluster}/${NginxService.Name}
-      # would prefer RoleARN: !GetAtt ApplicationAutoScalingServiceLinkedRole.Arn but the .Arn 
       RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
 
   NginxServiceScalingPolicy:
-    # DependsOn: statement may be required
-    # DependsOn:
-    #   - NginxServiceScalableTarget
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties: 
       PolicyName: !Sub ${AWS::StackName}-Nginx-ScalingPolicy
