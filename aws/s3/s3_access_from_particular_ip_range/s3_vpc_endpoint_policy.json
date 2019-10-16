@@ -1,0 +1,26 @@
+{  
+  "Version":"2012-10-17",
+  "Id":"Policy1415115909153",
+  "Statement":[  
+    {  
+      "Sid":"s3-specific-VPC-only",
+      "Principal":"*",
+      "Action": [
+        "s3:List*",
+        "s3:Delete*",
+      ],
+      "Effect":"Allow",
+      "Resource":[  
+        "${s3_bucket_arn}",
+        "${s3_bucket_arn}/*"
+      ],
+      "Condition":{  
+        "IpAddress":{  
+          "aws:SourceIp":[  
+            "${source_ip_range}"
+          ]
+        }
+      }
+    }
+  ]
+}
