@@ -4,7 +4,7 @@
 require_once './vendor/autoload.php';
 
 // Create the Transport
-$transport = (new Swift_SmtpTransport('email-smtp.us-east-1.amazonaws.com', 465, 'tls'))
+$transport = (new Swift_SmtpTransport('email-smtp.us-east-1.amazonaws.com', 465, 'ssl'))
   ->setUsername('$_ENV["SMTP_USERNAME"]')
   ->setPassword('$_ENV["SMTP_PASSWORD"]')
 ;
