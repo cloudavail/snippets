@@ -6,7 +6,7 @@ The purpose of this snippet is to provide a basic platform for testing the MySQL
 
 The `mysql` Docker container makes an assumption that you provide the `MYSQL_ROOT_PASSWORD` enviornment variable. Set this first (or you can also set in an `.env` file). An example is below:
 
-`MYSQL_ROOT_PASSWORD='password'`
+`export MYSQL_ROOT_PASSWORD='password'`
 
 ## In Foreground
 
