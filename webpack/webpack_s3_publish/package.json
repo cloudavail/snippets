@@ -11,7 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "lodash": "^4.17.15"
+    "lodash": "^4.17.15",
+    "webpack-s3-plugin": "^1.0.3"
   },
   "devDependencies": {
     "webpack": "^4.41.2",
