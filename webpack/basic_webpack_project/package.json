@@ -1,24 +1,20 @@
 {
-  "name": "webpack-test",
+  "name": "webpack_publish_s3",
   "version": "1.0.0",
-  "description": "",
-  "private": true,
+  "description": "This snippet describes how to publish a webpack project to S3.",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "watch": "webpack --watch",
-    "start": "webpack-dev-server --open",
-    "server": "node server.js",
     "build": "webpack"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "lodash": "^4.17.15"
+  },
   "devDependencies": {
-    "express": "^4.17.1",
-    "html-webpack-plugin": "^3.2.0",
     "webpack": "^4.41.2",
-    "webpack-cli": "^3.3.10",
-    "webpack-dev-middleware": "^3.7.2",
-    "webpack-dev-server": "^3.9.0"
+    "webpack-cli": "^3.3.10"
   }
 }
