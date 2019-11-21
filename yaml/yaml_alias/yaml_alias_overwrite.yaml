@@ -1,0 +1,19 @@
+---
+vehicles:
+  # list all common car elements here
+  car: &base_car
+    engine: gasoline
+    motor: true
+    wheels: 4
+
+cars:
+  volvo_242_1979:
+    <<: *base_car
+    doors: 2
+  volvo_740_1985:
+    <<: *base_car
+    doors: 4
+  tesla_roadster_2008:
+    <<: *base_car
+    engine: electric
+    doors: 2
