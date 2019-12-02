@@ -1,0 +1,32 @@
+{
+  "variables": {
+    "packer_subnet_id":"",
+    "packer_vpc_id":""
+  },
+  "builders": [{
+    "type": "amazon-ebs",
+    "ami_name": "clipstock-baseami-{{timestamp}}",
+    "associate_public_ip_address": true,
+    "encrypt_boot": "true",
+    "instance_type": "t2.micro",
+    "region": "us-east-1",
+    "ssh_username": "ec2-user",
+    "source_ami": "ami-0b898040803850657",
+    "subnet_id": "{{user `packer_subnet_id`}}",
+    "vpc_id": "{{user `packer_vpc_id`}}",
+    "ami_regions": [
+      "us-west-2"
+    ]
+  }],
+  "provisioners": [
+    {
+    "type": "shell",
+    "inline": "sudo yum install -y httpd" 
+    }],
+  "post-processors": [
+    {
+      "type": "manifest",
+      "output": "manifest.json"
+    }
+  ]
+}
