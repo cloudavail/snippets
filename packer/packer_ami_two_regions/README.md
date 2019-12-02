@@ -2,7 +2,7 @@
 
 Current file builds an AMI and installs Apache
 
-Run from current directory
+This command runs from the current directory
 
 ```
 packer build -var-file=./ami_two_regions_vars.json ./ami_two_regions.json
