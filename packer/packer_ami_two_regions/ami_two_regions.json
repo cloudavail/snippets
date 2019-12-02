@@ -5,7 +5,7 @@
   },
   "builders": [{
     "type": "amazon-ebs",
-    "ami_name": "clipstock-baseami-{{timestamp}}",
+    "ami_name": "baseami-{{timestamp}}",
     "associate_public_ip_address": true,
     "encrypt_boot": "true",
     "instance_type": "t2.micro",
