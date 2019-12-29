@@ -1,0 +1,16 @@
+vagrantfile_api_version = '2'
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'centos/8'
+  config.vm.hostname = 'blackfire'
+  config.vm.network :forwarded_port, guest: 80, host: 8080
+  config.vm.provision "shell" do |s|
+    s.env = {
+      BLACKFIRE_SERVER_ID: ENV['BLACKFIRE_SERVER_ID'],
+      BLACKFIRE_SERVER_TOKEN: ENV['BLACKFIRE_SERVER_TOKEN']
+    }
+    s.path = './blackfire_install.sh'
+  end
+
+end
