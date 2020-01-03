@@ -1,0 +1,35 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for generic ElasticBeanstalk app
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  ElasticBeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      # note that if ApplicationName is set and is not unique you
+      # will not able able to run a given stack multiple times
+      ApplicationName: !Ref AWS::StackName
+      ResourceLifecycleConfig:
+        ServiceRole: arn:aws:iam::###########:role/aws-elasticbeanstalk-service-role
+        VersionLifecycleConfig: 
+          MaxAgeRule: 
+            DeleteSourceFromS3: false
+            Enabled: true
+            MaxAgeInDays: 120
+
+
+
+Outputs:
+
+  ElasticBeanstalkApplication:
+    Description: EB Application Name
+    Value: !Ref ElasticBeanstalkApplication
+    Export:
+      Name: !Sub ${AWS::StackName}
