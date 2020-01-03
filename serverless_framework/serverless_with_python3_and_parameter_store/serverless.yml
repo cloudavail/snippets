@@ -1,0 +1,24 @@
+service: serverless-with-python3-parameter-store
+
+provider:
+  name: aws
+  runtime: python3.7
+  region: us-west-2
+  # note that the variable here will be exposed via the AWS Console
+  environment:
+    MY_API_KEY: ${ssm:my_api_key}
+
+functions:
+  hello:
+    handler: handler.hello
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources:
+    NewResource:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: my_api_key
+        Type: String
+        # see https://serverless.com/framework/docs/providers/aws/guide/variables/
+        Value: ${env:MY_API_KEY}

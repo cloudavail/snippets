@@ -1,0 +1,29 @@
+service: serverless-with-python3-parameter-store
+
+provider:
+  name: aws
+  runtime: python3.7
+  region: us-west-2
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+      Resource:
+        # you may wish to consider replacing the wildcards below
+        # with a particular region and account id
+        - arn:aws:ssm:*:*:parameter/my_api_key
+
+functions:
+  hello:
+    handler: handler.hello
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources:
+    NewResource:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: my_api_key
+        Type: String
+        # see https://serverless.com/framework/docs/providers/aws/guide/variables/
+        Value: ${env:MY_API_KEY}

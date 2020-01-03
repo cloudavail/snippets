@@ -1,0 +1,13 @@
+[
+  {
+    "name": "ubuntu",
+    "image": "ubuntu",
+    "essential": true,
+    "memory": 512,
+    "secrets": [{
+      "name": "DB_HOST",
+      "valueFrom": "arn:aws:ssm:${REGION}:${AWS_ACCOUNT_ID}:parameter/test/ubuntu/db_host"
+    }],
+    "command": [ "env"]
+  }
+]

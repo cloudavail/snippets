@@ -1,0 +1,218 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: API Gateway With Private Link
+
+Parameters:
+
+  # using Ubuntu AMIs from https://cloud-images.ubuntu.com/locator/ec2/
+  # search string for 18.04 LTS hvm:ebs-ssd amd64
+  WebServerImageId:
+    Type: AWS::EC2::Image::Id    
+    Default: ami-06d51e91cea0dac8d
+
+  WebServerInstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.small
+
+  WebServerKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: WebServerTest
+
+Mappings: {}
+
+Resources:
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      EndpointConfiguration: 
+        Types: 
+          - REGIONAL
+      Name: ApiGateway
+
+  ApiGatewayTestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: test
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayTestGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        # from: https://docs.aws.amazon.com/apigateway/latest/developerguide/getting-started-with-private-integration.html
+        ConnectionId: !Ref ApiGatewayWebServerLoadBalancerVpcLink
+        ConnectionType: VPC_LINK
+        IntegrationHttpMethod: GET
+        Type: HTTP_PROXY
+        Uri: !Sub http://${WebServerLoadBalancer.DNSName}/index.html
+      ResourceId: !Ref ApiGatewayTestResource
+      RestApiId: !Ref ApiGatewayRestApi
+  
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties: 
+      DeploymentId: !Ref ApiGatewayDeployment
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: prod
+
+  ApiGatewayDeployment:
+    # without the DependsOn dependency, the ApiGatewayDeployment will be
+    # created immediately after the creation of the AWS::ApiGateway::RestApi
+    DependsOn:
+      - ApiGatewayTestGetMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties: 
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayWebServerLoadBalancerVpcLink:
+    Type: AWS::ApiGateway::VpcLink
+    Properties: 
+      Name: WebServerLoadBalancerVPCLink
+      TargetArns: 
+        - !Ref WebServerLoadBalancer
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  WebServerLoadBalancerHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebServerTargetGroup
+      LoadBalancerArn: !Ref WebServerLoadBalancer
+      Protocol: TCP
+      Port: 80
+
+  WebServerLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      # the NLB does not allow SecurityGroups
+      # SecurityGroups:
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Type: network
+
+  WebServerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VPC
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  WebServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref WebServerImageId
+        InstanceType: !Ref WebServerInstanceType
+        KeyName: !Ref WebServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt WebServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash -
+            apt -y update
+            apt -y install apache2
+            cat > /var/www/html/index.html <<EOF
+            <!DOCTYPE html>
+            <html>
+            <body>
+            <h1>Testing</h1>
+            </body>
+            </html>
+            EOF
+            systemctl start httpd.service
+
+  WebServerScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebServerLaunchTemplate
+        Version: !GetAtt WebServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      TargetGroupARNs:
+        - !Ref WebServerTargetGroup
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02

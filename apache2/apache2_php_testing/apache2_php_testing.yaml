@@ -1,0 +1,287 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for testing performance of Apache2
+
+Parameters:
+
+  Apache2InstanceType:
+    Description: Apache2 Instance Type
+    Type: String
+    Default: m5.large
+
+  Apache2ImageId:
+    Description: Apache2 Instance Type
+    Type: AWS::EC2::Image::Id
+    # https://cloud-images.ubuntu.com/locator/ec2/
+    # 18.04 lts hvm:ebs-ssd amd64
+    Default: ami-0a7d051a1c4b54f65
+
+  Apache2KeyName:
+    Description: Apache2 Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: apache2-testing
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  Apache2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Apache2 Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 10.0.0.0/24
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  Apache2TesterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Apache2 Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  # mpm_prefork is a requirement for mod_php (aka: php7_module)
+  # ERROR: The following modules depend on mpm_prefork and need to be disabled first: php7.2
+  Apache2modphp:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref Apache2ImageId
+      InstanceType: !Ref Apache2InstanceType
+      KeyName: !Ref Apache2KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref Apache2SecurityGroup            
+          SubnetId: !Ref PublicSubnet
+      UserData: !Base64 |
+        #!/bin/bash -
+        apt update
+        apt -y install php php-fpm
+        apt -y install apache2 libapache2-mod-php
+        cat > /var/www/html/phpinfo.php <<EOF
+        <?php
+          phpinfo();
+        ?>
+        EOF
+        cat > /var/www/html/index.php <<EOF
+        <html>
+          <head>
+            <title>PHP Test</title>
+          </head>
+          <body>
+            <?php echo '<p>mod-php ------- Server</p>'; ?>
+          </body>
+        </html>
+        EOF
+        systemctl restart apache2
+      Tags:
+        - Key: Name
+          Value: apache2-mod-php
+
+  Apache2fpmprefork:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref Apache2ImageId
+      InstanceType: !Ref Apache2InstanceType
+      KeyName: !Ref Apache2KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref Apache2SecurityGroup            
+          SubnetId: !Ref PublicSubnet
+      UserData: !Base64 |
+        #!/bin/bash -
+        apt update
+        apt -y install php php-fpm
+        apt -y install apache2
+        a2dismod php7.2
+        a2enmod proxy_fcgi
+        a2enconf php7.2-fpm
+        cat > /var/www/html/phpinfo.php <<EOF
+        <?php
+          phpinfo();
+        ?>
+        EOF
+        cat > /var/www/html/index.php <<EOF
+        <html>
+          <head>
+            <title>PHP Test</title>
+          </head>
+          <body>
+            <?php echo '<p>php-fpm prefork Server</p>'; ?>
+          </body>
+        </html>
+        EOF
+        systemctl restart apache2
+      Tags:
+        - Key: Name
+          Value: apache2-fpm-prefork
+
+  Apache2fpmworker:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref Apache2ImageId
+      InstanceType: !Ref Apache2InstanceType
+      KeyName: !Ref Apache2KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref Apache2SecurityGroup            
+          SubnetId: !Ref PublicSubnet
+      UserData: !Base64 |
+        #!/bin/bash -
+        apt update
+        apt -y install php php-fpm
+        apt -y install apache2
+        a2dismod php7.2
+        a2enmod proxy_fcgi
+        a2enconf php7.2-fpm
+        cat > /var/www/html/phpinfo.php <<EOF
+        <?php
+          phpinfo();
+        ?>
+        EOF
+        cat > /var/www/html/index.php <<EOF
+        <html>
+          <head>
+            <title>PHP Test</title>
+          </head>
+          <body>
+            <?php echo '<p>php-fpm worker- Server</p>'; ?>
+          </body>
+        </html>
+        EOF
+        a2dismod mpm_prefork
+        a2enmod mpm_worker
+        systemctl restart apache2
+      Tags:
+        - Key: Name
+          Value: apache2-fpm-worker
+
+  Apache2fpmevent:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref Apache2ImageId
+      InstanceType: !Ref Apache2InstanceType
+      KeyName: !Ref Apache2KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref Apache2SecurityGroup            
+          SubnetId: !Ref PublicSubnet
+      UserData: !Base64 |
+        #!/bin/bash -
+        apt update
+        apt -y install php php-fpm
+        apt -y install apache2
+        a2dismod php7.2
+        a2enmod proxy_fcgi
+        a2enconf php7.2-fpm
+        cat > /var/www/html/phpinfo.php <<EOF
+        <?php
+          phpinfo();
+        ?>
+        EOF
+        cat > /var/www/html/index.php <<EOF
+        <html>
+          <head>
+            <title>PHP Test</title>
+          </head>
+          <body>
+            <?php echo '<p>php-fpm event-- Server</p>'; ?>
+          </body>
+        </html>
+        EOF
+        a2dismod mpm_prefork
+        a2enmod mpm_event
+        systemctl restart apache2
+      Tags:
+        - Key: Name
+          Value: apache2-fpm-event
+
+  Apache2Tester:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref Apache2ImageId
+      InstanceType: !Ref Apache2InstanceType
+      KeyName: !Ref Apache2KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref Apache2TesterSecurityGroup  
+          SubnetId: !Ref PublicSubnet
+      UserData: !Base64 |
+        #!/bin/bash -
+        apt -y install apache2-utils
+      Tags:
+        - Key: Name
+          Value: apache2-tester
+
+Outputs: {}

@@ -1,0 +1,96 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: API Gateway
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  ApiGatewayAccount:
+    # the ApiGatewayAccount is required in order to launch an API Gateway Stage with Access Logging Enabled
+    # CloudWatch Logs role ARN must be set in account settings to enable logging (Service: AmazonApiGateway; Status Code: 400; Error Code: BadRequestException; Request ID: c11c75ec-5c77-4c49-bc2d-075d3b8fec20)
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayIAMRole.Arn
+
+  ApiGatewayIAMRole:
+    # the ApiGatewayIAMRole is required in order to launch an API Gateway Stage with Access Logging Enabled
+    # CloudWatch Logs role ARN must be set in account settings to enable logging (Service: AmazonApiGateway; Status Code: 400; Error Code: BadRequestException; Request ID: c11c75ec-5c77-4c49-bc2d-075d3b8fec20)
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub ${AWS::StackName}
+      RetentionInDays: 1
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      EndpointConfiguration: 
+        Types: 
+          - REGIONAL
+      Name: ApiGateway
+
+  ApiGatewayTestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: test
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayTestGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration: 
+        IntegrationHttpMethod: GET
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: Empty
+        Type: HTTP
+        Uri: http://cloudavail.com
+      MethodResponses: 
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+      ResourceId: !Ref ApiGatewayTestResource
+      RestApiId: !Ref ApiGatewayRestApi
+  
+  ApiGatewayStage:
+    DependsOn: ApiGatewayIAMRole
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
+      DeploymentId: !Ref ApiGatewayDeployment
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: prod
+
+  ApiGatewayDeployment:
+    # without the DependsOn dependency, the ApiGatewayDeployment will be
+    # created immediately after the creation of the AWS::ApiGateway::RestApi
+    DependsOn:
+      - ApiGatewayTestGetMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties: 
+      RestApiId: !Ref ApiGatewayRestApi

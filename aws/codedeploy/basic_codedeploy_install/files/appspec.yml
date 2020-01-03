@@ -1,0 +1,10 @@
+version: 0.0
+os: linux
+# files:
+#   - source: /index.html
+#     destination: /var/www/html
+hooks:
+  AfterInstall:
+    - location: ./scripts/after_install.sh
+      timeout: 5
+      runas: root

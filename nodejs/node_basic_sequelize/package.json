@@ -1,0 +1,16 @@
+{
+  "name": "node_basic_sequelize",
+  "version": "1.0.0",
+  "description": "",
+  "main": "node_basic_sequelize.js",
+  "dependencies": {
+    "mysql2": "^2.0.0",
+    "sequelize": "^5.21.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

@@ -1,0 +1,13 @@
+vagrantfile_api_version = "2"
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = "ubuntu/bionic64"
+  config.vm.hostname = "elasticsearch"
+  config.vm.network "forwarded_port", guest: 9200, host: 9200
+  config.vm.provision "shell", path: "./basic_elasticsearch_server.sh"
+  config.vm.provider "virtualbox" do |v|
+    v.memory = 2048
+  end
+
+end

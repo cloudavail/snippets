@@ -1,0 +1,25 @@
+{  
+  "Version":"2012-10-17",
+  "Id":"Policy1415115909153",
+  "Statement":[  
+    {  
+      "Principal":"*",
+      "Action": [
+        "s3:Delete*",
+        "s3:List*"
+      ],
+      "Effect":"Allow",
+      "Resource":[  
+        "${s3_bucket_arn}",
+        "${s3_bucket_arn}/*"
+      ],
+      "Condition":{  
+        "IpAddress":{  
+          "aws:SourceIp":[  
+            "${source_ip_range}"
+          ]
+        }
+      }
+    }
+  ]
+}
