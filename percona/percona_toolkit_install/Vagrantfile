@@ -1,0 +1,8 @@
+vagrantfile_api_version = '2'
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/bionic64'
+  config.vm.provision 'shell', path: './percona_toolkit_install.sh'
+
+end
