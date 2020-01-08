@@ -6,10 +6,14 @@
 
 `aws2 cloudformation validate-template --template-body file://ecs_cluster.yaml`
 
-# Create the VPC and ECS Cluster
+# Create the ECS Cluster
 
 `aws2 cloudformation create-stack --stack-name ecs-cluster --capabilities CAPABILITY_IAM --template-body file://ecs_cluster.yaml`
 
-# Delete the VPC and ECS Cluster
+# Update the ECS Cluster
+
+`aws2 cloudformation update-stack --stack-name ecs-cluster --capabilities CAPABILITY_IAM --template-body file://ecs_cluster.yaml`
+
+# Delete the ECS Cluster
 
 `aws2 cloudformation delete-stack --stack-name ecs-cluster`

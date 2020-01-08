@@ -19,7 +19,7 @@ Parameters:
   ECSServerKeyName:
     Description: ECS Server Key Name
     Type: AWS::EC2::KeyPair::KeyName
-    Default: ECSServerKey
+    Default: ecs-cluster
 
 Mappings: {}
 
@@ -157,3 +157,13 @@ Resources:
       VPCZoneIdentifier:
         - !Ref PublicSubnet01
         - !Ref PublicSubnet02
+
+  ExampleTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: ubuntu
+          Image: ubuntu:bionic
+          Cpu: 1024
+          Memory: 512
+          Essential: true
