@@ -4,6 +4,11 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Parameters:
 
+  ECSServerImageId:
+    Description: ECS Server Instance Image Id
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
   ECSServerInstanceType:
     Description: ECS Server Instance Type
     Type: String
@@ -16,12 +21,7 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Default: ECSServerKey
 
-Mappings:
-
-  AWSRegion2AWSResources:
-    # from https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
-    us-west-2:
-      AMI: ami-00e0090ac21971297  
+Mappings: {}
 
 Resources:
 
@@ -129,7 +129,7 @@ Resources:
       LaunchTemplateData:
         IamInstanceProfile:
           Arn: !GetAtt ECSServerInstanceProfile.Arn
-        ImageId: !FindInMap [ AWSRegion2AWSResources, !Ref 'AWS::Region', AMI ]
+        ImageId: !Ref ECSServerImageId
         InstanceType: !Ref ECSServerInstanceType
         KeyName: !Ref ECSServerKeyName
         NetworkInterfaces:
