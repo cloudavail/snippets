@@ -5,28 +5,21 @@ Description: AWS CloudFormation Stack for an ECS Cluster and Associated Resource
 
 Parameters:
 
-  containerInstanceInstanceType:
-    Description: container Instance Instance Type
-    Type: String
-    Default: t2.micro
+  ContainerInstanceImageId:
+    Description: Container Instance Image Id
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
-  keyName:
-    Description: ECS keypair
+  ContainerInstanceInstanceType:
+    Description: Container Instance Instance Type
+    Type: String
+    Default: t3.micro
+
+  ContainerInstanceKeyName:
+    Description: ECS Keypair
     Type: AWS::EC2::KeyPair::KeyName
 
-Mappings:
-
-  AWSInstanceType2Arch:
-    t2.micro:
-      Arch: 64HVM
-    t2.small:
-      Arch: 64HVM
-
-  AWSRegionArch2AMI:
-    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI_launch_latest.html
-    # aws ec2 describe-images --owners amazon --filters Name=name,Values=*amazon-ecs-optimized --region us-west-2 --output table
-    us-west-2:
-      64HVM: ami-62d35c02
+Mappings: {}
 
 Resources:
 
@@ -85,14 +78,14 @@ Resources:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
 
-  nginxELB:
+  NginxELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
       Subnets:
         - !Ref PublicSubnet01
         - !Ref PublicSubnet02
       SecurityGroups:
-        - !Ref nginxELBSecurityGroup
+        - !Ref NginxELBSecurityGroup
       HealthCheck:
         Target: HTTP:80/index.html
         HealthyThreshold: 3
@@ -108,7 +101,7 @@ Resources:
         Enabled: true
         Timeout: 60
 
-  nginxELBSecurityGroup:
+  NginxELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: nginx ELB Security Group
@@ -119,7 +112,7 @@ Resources:
           ToPort: 80
           CidrIp: 0.0.0.0/0
 
-  ecsServiceIAMRole:
+  ECSServiceIAMRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -133,10 +126,10 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
 
-  ecsCluster:
+  ECSCluster:
     Type: AWS::ECS::Cluster
 
-  containerInstanceECSRole:
+  ContainerInstanceECSRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -151,10 +144,10 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
 
-  containerInstanceSecurityGroup:
+  ContainerInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: container Instance Security Group
+      GroupDescription: Container Instance Security Group
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -164,60 +157,53 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          SourceSecurityGroupId: !Ref nginxELBSecurityGroup
+          SourceSecurityGroupId: !Ref NginxELBSecurityGroup
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 0
           ToPort: 65535
           CidrIp: 0.0.0.0/0
 
-  containerInstanceInstanceProfile:
+  ContainerInstanceInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref containerInstanceECSRole
+        - !Ref ContainerInstanceECSRole
 
-  containerInstanceAutoScalingGroup:
+  ContainerInstanceAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
+      DesiredCapacity: 2
+      MinSize: 2
+      MaxSize: 2
+      LaunchConfigurationName: !Ref ContainerInstanceLaunchConfig
       VPCZoneIdentifier:
         - !Ref PublicSubnet01
         - !Ref PublicSubnet02
-      LaunchConfigurationName: !Ref containerInstanceLaunchConfig
-      MinSize: 2
-      MaxSize: 2
-      DesiredCapacity: 2
       Tags:
         - Key: Name
-          Value: containerInstance
+          Value: !Ref AWS::StackName
           PropagateAtLaunch: true
 
-  containerInstanceLaunchConfig:
+  ContainerInstanceLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       AssociatePublicIpAddress: true
-      IamInstanceProfile: !Ref containerInstanceInstanceProfile
-      ImageId:
-        Fn::FindInMap:
-          - AWSRegionArch2AMI
-          - Ref: AWS::Region
-          - Fn::FindInMap:
-            - AWSInstanceType2Arch
-            - Ref: containerInstanceInstanceType
-            - Arch
-      InstanceType: !Ref containerInstanceInstanceType
-      KeyName: !Ref keyName
+      IamInstanceProfile: !Ref ContainerInstanceInstanceProfile
+      ImageId: !Ref ContainerInstanceImageId
+      InstanceType: !Ref ContainerInstanceInstanceType
+      KeyName: !Ref ContainerInstanceKeyName
       SecurityGroups:
-        - !Ref containerInstanceSecurityGroup
+        - !Ref ContainerInstanceSecurityGroup
       UserData:
         Fn::Base64:
           !Sub |
             #!/bin/bash
             cat > /etc/ecs/ecs.config <<EOF
-            ECS_CLUSTER=${ecsCluster}
+            ECS_CLUSTER=${ECSCluster}
             EOF
 
-  taskDefinition:
+  NginxTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       ContainerDefinitions:
@@ -233,21 +219,21 @@ Resources:
               HostPort: 80
           Essential: true
 
-  serviceDefinition:
+  NginxServiceDefinition:
     Type: AWS::ECS::Service
     Properties:
-      Cluster: !Ref ecsCluster
+      Cluster: !Ref ECSCluster
       DesiredCount: 2
       LoadBalancers:
         - ContainerName: nginx
           ContainerPort: 80
-          LoadBalancerName: !Ref nginxELB
+          LoadBalancerName: !Ref NginxELB
       # Role is required to allow the service to make calls to a given ELB
-      Role: !Ref ecsServiceIAMRole
-      TaskDefinition: !Ref taskDefinition
+      Role: !Ref ECSServiceIAMRole
+      TaskDefinition: !Ref NginxTaskDefinition
 
 Outputs:
 
-  nginxELBDNSName:
+  NginxELBDNSName:
     Description: The DNSName of the nginx ELB
-    Value: !GetAtt nginxELB.DNSName
+    Value: !GetAtt NginxELB.DNSName
