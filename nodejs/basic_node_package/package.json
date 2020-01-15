@@ -1,0 +1,12 @@
+{
+  "name": "@cloudavail/snippets",
+  "version": "1.0.0",
+  "description": "This snippet creates a Node module for use in other projects.",
+  "main": "index.js",
+  "publishConfig": { "registry": "https://npm.pkg.github.com/" },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
