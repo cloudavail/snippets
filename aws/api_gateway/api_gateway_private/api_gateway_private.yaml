@@ -1,0 +1,72 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: API Gateway
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      EndpointConfiguration: 
+        Types: 
+          - PRIVATE
+      Name: ApiGateway
+      Policy:
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: execute-api:Invoke
+            # note that !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccoundId}:${ApiGatewayRestApi}/*/*/*
+            # might be the appropriate format but I do not know how to reference an a AWS::ApiGateway::RestApi's
+            # ID within itself
+            Resource: execute-api:/*/*/*
+        Version: 2012-10-17
+
+  ApiGatewayTestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: test
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayTestGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration: 
+        IntegrationHttpMethod: GET
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: Empty
+        Type: HTTP
+        Uri: http://cloudavail.com
+      MethodResponses: 
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+      ResourceId: !Ref ApiGatewayTestResource
+      RestApiId: !Ref ApiGatewayRestApi
+  
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties: 
+      DeploymentId: !Ref ApiGatewayDeployment
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: prod
+
+  ApiGatewayDeployment:
+    # without the DependsOn dependency, the ApiGatewayDeployment will be
+    # created immediately after the creation of the AWS::ApiGateway::RestApi
+    DependsOn:
+      - ApiGatewayTestGetMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties: 
+      RestApiId: !Ref ApiGatewayRestApi
