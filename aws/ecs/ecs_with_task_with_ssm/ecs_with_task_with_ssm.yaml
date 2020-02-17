@@ -1,0 +1,209 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  ECSServerImageId:
+    Description: ECS Server Instance Image Id
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  ECSServerInstanceType:
+    Description: ECS Server Instance Type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+
+  ECSServerKeyName:
+    Description: ECS Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ecs-cluster
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSServerIAMRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ECSServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt ECSServerInstanceProfile.Arn
+        ImageId: !Ref ECSServerImageId
+        InstanceType: !Ref ECSServerInstanceType
+        KeyName: !Ref ECSServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt ECSServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+
+  ECSServerScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ECSServerLaunchTemplate
+        Version: !GetAtt ECSServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  ExampleSSMParameter:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Name: !Sub /${AWS::StackName}/example-ssm-parameter
+      Tier: Standard
+      # Note that SecureString is not supported
+      Type: String
+      Value: ExampleSSMParameterValue
+
+  ExampleTaskExecutionRoleIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-ExampleTaskExecutionRoleIAMPolicy
+      PolicyDocument:
+        Action:
+          - ssm:GetParameter
+        Effect: Allow
+        Resource:
+          # you may wish to consider replacing the wildcards below
+          # with a particular region and account id
+          - !Sub arn:aws:ssm:*:*:parameter/${AWS::StackName}/example-ssm-parameter
+      Roles:
+        - !Ref ExampleTaskExecutionRoleIAMRole
+
+  ExampleTaskExecutionRoleIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+        Version: 2012-10-17
+
+  ExampleTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: ubuntu
+          Cpu: 1024
+          Essential: true
+          Image: ubuntu:bionic        
+          Memory: 512
+          Secrets:
+            - Name: ExampleSSMParameter
+              ValueFrom: !Sub /${AWS::StackName}/example-ssm-parameter
+      ExecutionRoleArn: !Ref ExampleTaskExecutionRoleIAMRole
