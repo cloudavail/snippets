@@ -1,0 +1,15 @@
+{
+  "name": "node_envkey_app",
+  "version": "1.0.0",
+  "description": "This snippet contains a simple node script that utilizes the [EnvKey](https://www.envkey.com/) service.",
+  "main": "envkey.js",
+  "dependencies": {
+    "envkey": "^1.2.7"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
