@@ -1,0 +1,156 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: OpenVPN Access Server in a VPC
+
+Parameters:
+
+  OpenVPNAccessServerInstanceType:
+    Type: String
+    Default: t3.small
+
+  OpenVPNAccessServerImageId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-034692da3c6768a18
+
+  OpenVPNAccessServerKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: openvpn-access-server
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  OpenVPNAccessServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: OpenVPN AccessServer Security Group
+      # SecurityGroupIngress ports are taken from vendor documentation at URL
+      # https://openvpn.net/vpn-server-resources/amazon-web-services-ec2-byol-appliance-quick-start-guide/
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 943
+          ToPort: 943
+          CidrIp: 0.0.0.0/0
+        # - IpProtocol: tcp
+        #  FromPort: 945
+        #  ToPort: 945
+        #  CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 1194
+          ToPort: 1194
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  OpenVPNAccessServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref OpenVPNAccessServerImageId
+        InstanceType: !Ref OpenVPNAccessServerInstanceType
+        KeyName: !Ref OpenVPNAccessServerKeyName
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt OpenVPNAccessServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+
+  OpenVPNAccessServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref OpenVPNAccessServerLaunchTemplate
+        Version: !GetAtt OpenVPNAccessServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+
+  VPCRoute53ResolverEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPCRoute53ResolverEndpointSecurityGroup
+      # SecurityGroupIngress ports are taken from vendor documentation at URL
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-route53resolver-resolverendpoint.html
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          SourceSecurityGroupId: !Ref OpenVPNAccessServerSecurityGroup
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          SourceSecurityGroupId: !Ref OpenVPNAccessServerSecurityGroup
+      VpcId: !Ref VPC
+
+  VPCRoute53ResolverEndpoint:
+    Type: AWS::Route53Resolver::ResolverEndpoint
+    Properties:
+      Direction: inbound
+      IpAddresses:
+        - SubnetId: !Ref PublicSubnet01
+        - SubnetId: !Ref PrivateSubnet01
+      SecurityGroupIds : 
+        - !Ref VPCRoute53ResolverEndpointSecurityGroup
+
+Outputs: {}
