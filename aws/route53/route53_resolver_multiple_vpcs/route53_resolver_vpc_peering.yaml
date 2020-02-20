@@ -1,0 +1,207 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Route53 Resolver Spanning Multiple VPCs
+
+Parameters:
+
+  ServerInstanceType:
+    Type: String
+    Default: t3.nano
+
+  ServerImageId:
+    Type: AWS::EC2::Image::Id
+    # https://cloud-images.ubuntu.com/locator/ec2/
+    # search on: 18.04 lts us-west-2 hvm:ebs-ssd
+    Default: ami-0edf3b95e26a682df
+
+  ServerKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: route53-test
+
+Mappings: {}
+
+Resources:
+
+  VPC01:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  VPC01PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC01
+
+  VPC01PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC01
+
+  VPC01PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC01
+
+  VPC01PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC01PublicInternetRouteTable
+      SubnetId: !Ref VPC01PublicSubnet01
+
+  VPC02PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC01PublicInternetRouteTable
+      SubnetId: !Ref VPC01PublicSubnet02
+
+  VPC01InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPC01PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC01InternetGateway
+      RouteTableId: !Ref VPC01PublicInternetRouteTable
+
+  VPC01GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref VPC01InternetGateway
+      VpcId: !Ref VPC01
+
+  VPC02:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  VPC02PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.1.0.0/25
+      VpcId: !Ref VPC02
+
+  VPC02PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.1.0.128/25
+      VpcId: !Ref VPC02
+
+  VPC01VPC02VPCPeeringConnection:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties: 
+      PeerVpcId: !Ref VPC02
+      VpcId: !Ref VPC01
+
+  VPC01ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPC01 Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC01
+
+  VPC01ServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ServerImageId
+        InstanceType: !Ref ServerInstanceType
+        KeyName: !Ref ServerKeyName
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt VPC01ServerSecurityGroup.GroupId ]
+
+  VPC01ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref VPC01ServerLaunchTemplate
+        Version: !GetAtt VPC01ServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref VPC01PublicSubnet01
+        - !Ref VPC01PublicSubnet02
+
+  VPC02ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPC02 Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC02
+
+  VPC02ServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ServerImageId
+        InstanceType: !Ref ServerInstanceType
+        KeyName: !Ref ServerKeyName
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt VPC02ServerSecurityGroup.GroupId ]
+
+  VPC02ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref VPC02ServerLaunchTemplate
+        Version: !GetAtt VPC02ServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref VPC02PublicSubnet01
+        - !Ref VPC02PublicSubnet02
+
+  VPC01Route53ResolverEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPCRoute53ResolverEndpointSecurityGroup
+      # SecurityGroupIngress ports are taken from vendor documentation at URL
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-route53resolver-resolverendpoint.html
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp : 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp : 0.0.0.0/0
+      VpcId: !Ref VPC01
+
+  VPCRoute53ResolverEndpoint:
+    Type: AWS::Route53Resolver::ResolverEndpoint
+    Properties:
+      Direction: inbound
+      IpAddresses:
+        - SubnetId: !Ref VPC01PublicSubnet01
+        - SubnetId: !Ref VPC01PublicSubnet02
+      SecurityGroupIds : 
+        - !Ref VPC01Route53ResolverEndpointSecurityGroup
+
+Outputs: {}
