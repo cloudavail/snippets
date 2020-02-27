@@ -1,8 +1,3 @@
-intial requirements doc
-
-1. multiple accounts
-2. aws config needed?
-3. cloudtrail required?
 
 ```
 export AWS_PROFILE='admin-ctc'
