@@ -1,0 +1,80 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Enables multiple AWS Config Rules in AWS Organization
+
+Mappings: {}
+
+Parameters: {}
+
+Resources:
+
+  ConfigBucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: deliverychannel-awsconfig
+
+  ConfigRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSConfigRole
+      Policies:
+        - PolicyName: !Sub 'config-policy-${AWS::Region}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketAcl
+                Resource: !Sub 'arn:aws:s3:::${ConfigBucket}'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject*
+                Resource: !Sub 'arn:aws:s3:::${ConfigBucket}/AWSLogs/${AWS::AccountId}/*'
+                Condition:
+                  StringEquals:
+                    s3:x-amz-acl: bucket-owner-full-control
+      RoleName: !Sub config-role-${AWS::Region}
+  
+  # To enable AWS Config, you must create a configuration recorder 
+  # and a delivery channel
+  # You must create a configuration recorder before you can create or update a Config rule. 
+  ConfigConfigurationRecorder: 
+    Type: AWS::Config::ConfigurationRecorder
+    Properties: 
+      Name: default
+      RecordingGroup: 
+        AllSupported: true
+        IncludeGlobalResourceTypes: true
+      RoleARN: !GetAtt [ConfigRole, Arn]
+
+  ConfigDeliveryChannel: 
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      Name: default
+      S3BucketName: !Ref ConfigBucket
+
+  RootUserMFAEnabledConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:  
+      ConfigRuleName: RootUserMFARule
+      Description: Is MFA Enabled for Root User?
+      MaximumExecutionFrequency: One_Hour
+      # can create own rules via lambda or have a list of managed rules here:
+      # https://docs.aws.amazon.com/config/latest/developerguide/managed-rules-by-aws-config.html
+      Scope: 
+        ComplianceResourceTypes: []
+      Source:
+        Owner: AWS
+        SourceIdentifier: ROOT_ACCOUNT_MFA_ENABLED
+    DependsOn: ConfigConfigurationRecorder
+    
