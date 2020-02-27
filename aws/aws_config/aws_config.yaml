@@ -13,14 +13,7 @@ Resources:
   ConfigBucket:
     Type: AWS::S3::Bucket
     Properties: 
-      AccessControl: PublicReadWrite
       BucketName: deliverychannel-awsconfig
-      ObjectLockEnabled: False
-      PublicAccessBlockConfiguration: 
-        BlockPublicAcls: False
-        BlockPublicPolicy: False
-        IgnorePublicAcls: False
-        RestrictPublicBuckets: False
 
   ConfigRole:
     Type: AWS::IAM::Role
@@ -84,3 +77,4 @@ Resources:
         Owner: AWS
         SourceIdentifier: ROOT_ACCOUNT_MFA_ENABLED
     DependsOn: ConfigConfigurationRecorder
+    
