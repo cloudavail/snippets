@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: a simple VPC to standup for an private API Gateway
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ApiGatewayVPCEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: !Sub ${AWS::StackName}-vpcendpoint-security-group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  ApiGatewayVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref ApiGatewayVPCEndpointSecurityGroup
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.execute-api
+      SubnetIds: 
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+Outputs:
+
+  VPCId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCId

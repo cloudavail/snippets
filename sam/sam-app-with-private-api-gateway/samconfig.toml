@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "sam-app-with-private-api-gateway"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1knjwrybqlohn"
+s3_prefix = "sam-app-with-private-api-gateway"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=\"prod\""
+

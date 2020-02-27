@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  sam-app
+
+  Sample SAM Template for sam-app
+
+Resources:
+
+  AWSApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      # resolves an issue with the following error:
+      # Private REST API doesn't have a resource policy attached to it (Service: AmazonApiGateway;
+      # Status Code: 400; Error Code: BadRequestException; Request ID: acbe714e-970b-4150-b042-f5624a8b3ff4)
+      Auth:
+        ResourcePolicy:
+          IpRangeWhitelist: 10.0.0.0/24
+      Name: Private AWS Api Gateway
+      EndpointConfiguration: Private
+      #EndpointConfiguration: 
+      #  Types: 
+      #    - PRIVATE
+      #  VpcEndpointIds:
+      #    - !Ref ApiGatewayVPCEndpoint
+      StageName: Staging
+
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+            RestApiId: !Ref AWSApiGateway
+
+Outputs: {}
