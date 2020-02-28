@@ -13,7 +13,7 @@ Resources:
   ConfigBucket:
     Type: AWS::S3::Bucket
     Properties: 
-      BucketName: cloudavail-deliverychannel
+      BucketName: ${AWS::Region}-deliverychannel
 
   ConfigRole:
     Type: AWS::IAM::Role
@@ -135,6 +135,6 @@ Resources:
   ConfigSubscription:
     Type: AWS::SNS::Subscription
     Properties: 
-      Endpoint: randy@cloudavail.com
+      Endpoint: {email-address}
       Protocol: email
       TopicArn: !Ref ConfigTopic
