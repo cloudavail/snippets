@@ -13,7 +13,7 @@ Resources:
   ConfigBucket:
     Type: AWS::S3::Bucket
     Properties: 
-      BucketName: deliverychannel-awsconfig
+      BucketName: ${AWS::Region}-deliverychannel
 
   ConfigRole:
     Type: AWS::IAM::Role
@@ -45,16 +45,16 @@ Resources:
                     s3:x-amz-acl: bucket-owner-full-control
       RoleName: !Sub config-role-${AWS::Region}
   
-  # To enable AWS Config, you must create a configuration recorder 
-  # and a delivery channel
+  # To enable AWS Config, you must create a configuration recorder and a delivery channel
   # You must create a configuration recorder before you can create or update a Config rule. 
   ConfigConfigurationRecorder: 
     Type: AWS::Config::ConfigurationRecorder
     Properties: 
       Name: default
       RecordingGroup: 
-        AllSupported: true
-        IncludeGlobalResourceTypes: true
+        AllSupported: False
+        ResourceTypes: 
+          - AWS::IAM::User
       RoleARN: !GetAtt [ConfigRole, Arn]
 
   ConfigDeliveryChannel: 
@@ -62,19 +62,79 @@ Resources:
     Properties:
       Name: default
       S3BucketName: !Ref ConfigBucket
+      SnsTopicARN: !Ref ConfigTopic
 
-  RootUserMFAEnabledConfigRule:
+  IAMUserMFAEnabledConfigRule:
     Type: AWS::Config::ConfigRule
     Properties:  
-      ConfigRuleName: RootUserMFARule
-      Description: Is MFA Enabled for Root User?
+      ConfigRuleName: IAMUserMFARule
+      Description: Is MFA Enabled for IAM User?
       MaximumExecutionFrequency: One_Hour
       # can create own rules via lambda or have a list of managed rules here:
       # https://docs.aws.amazon.com/config/latest/developerguide/managed-rules-by-aws-config.html
       Scope: 
-        ComplianceResourceTypes: []
+        ComplianceResourceTypes: 
+          - AWS::IAM::User
       Source:
         Owner: AWS
-        SourceIdentifier: ROOT_ACCOUNT_MFA_ENABLED
+        SourceIdentifier: IAM_USER_MFA_ENABLED
     DependsOn: ConfigConfigurationRecorder
-    
+ 
+  ACMCertificateExpirationConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:  
+      ConfigRuleName: ACMCertificateExpirationRule
+      Description: Is ACM Certificate about to expire?
+      # Necessary for acm-certificate-expiration-check
+      InputParameters:
+        daysToExpiration: 30
+      MaximumExecutionFrequency: One_Hour
+      # can create own rules via lambda or have a list of managed rules here:
+      # https://docs.aws.amazon.com/config/latest/developerguide/managed-rules-by-aws-config.html
+      Scope: 
+        ComplianceResourceTypes:
+          - AWS::CertificateManager::Certificate
+      Source:
+        Owner: AWS
+        SourceIdentifier: ACM_CERTIFICATE_EXPIRATION_CHECK
+    DependsOn: ConfigConfigurationRecorder
+
+  S3ServerSideEncryptionConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:  
+      ConfigRuleName: S3ServerSideEncryptionRule
+      Description: Are S3 Buckets Encrpyted?
+      # can create own rules via lambda or have a list of managed rules here:
+      # https://docs.aws.amazon.com/config/latest/developerguide/managed-rules-by-aws-config.html
+      Scope: 
+        ComplianceResourceTypes:
+          - S3::Bucket
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+    DependsOn: ConfigConfigurationRecorder
+
+  ConfigTopic:
+    Type: AWS::SNS::Topic
+  
+  ConfigTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Id: ConfigTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: config.amazonaws.com
+          Action: SNS:Publish
+          Resource: "*"
+      Topics:
+        - !Ref ConfigTopic
+
+  ConfigSubscription:
+    Type: AWS::SNS::Subscription
+    Properties: 
+      Endpoint: {email-address}
+      Protocol: email
+      TopicArn: !Ref ConfigTopic

@@ -17,3 +17,5 @@ Then paste Arn in to the `RoleArn` Property
 # Update Stack
 `aws cloudformation update-stack --stack-name aws-config --capabilities CAPABILITY_NAMED_IAM --template-body file://aws_config.yaml`
 
+# Delete Stack
+`aws cloudformation delete-stack --stack-name aws-config`
