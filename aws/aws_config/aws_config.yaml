@@ -13,7 +13,7 @@ Resources:
   ConfigBucket:
     Type: AWS::S3::Bucket
     Properties: 
-      BucketName: ${AWS::Region}-deliverychannel
+      BucketName: !Sub ${AWS::Region}-deliverychannel
 
   ConfigRole:
     Type: AWS::IAM::Role
