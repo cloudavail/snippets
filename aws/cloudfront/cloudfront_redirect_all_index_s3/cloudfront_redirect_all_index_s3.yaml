@@ -1,0 +1,43 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: CloudFront with Redirect
+
+Parameters: {}
+
+Resources:
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      WebsiteConfiguration:
+        ErrorDocument: index.html
+        IndexDocument: index.html
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        DefaultCacheBehavior:
+          ForwardedValues:
+            QueryString: false
+          TargetOriginId: S3BucketOriginId
+          ViewerProtocolPolicy: allow-all
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - DomainName: !Sub ${S3Bucket}.s3-website-${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+            Id: S3BucketOriginId
