@@ -1,0 +1,175 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: shared Active MQ with VPC  
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicSubnetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PrivateSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/26
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet01
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  amazonmqSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: AmazonMQ Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # 8162 allows access to the Web Interface of AmazonMQ
+        - IpProtocol: tcp
+          FromPort: 8162
+          ToPort: 8162
+        - IpProtocol: tcp
+          FromPort: 8162
+          ToPort: 8162
+        # 61617 allows access to the AmazonMQ Queue Service
+        - IpProtocol: tcp
+          FromPort: 61617
+          ToPort: 61617
+      SecurityGroupEgress: []
+
+  amazonmqBroker:
+    Type: AWS::AmazonMQ::Broker
+    Properties: 
+      AutoMinorVersionUpgrade: false
+      BrokerName: !Sub amazonmq-${Environment}
+      DeploymentMode: SINGLE_INSTANCE
+      EncryptionOptions: 
+        UseAwsOwnedKey: true
+      EngineType: ACTIVEMQ
+      EngineVersion: 5.15.9
+      HostInstanceType: mq.t2.micro
+      Logs: 
+        Audit: true
+        General: true
+      PubliclyAccessible: true
+      SecurityGroups: 
+        - !Ref amazonmqSecurityGroup
+      SubnetIds:
+        # Specify a single subnet in [SINGLE_INSTANCE] deployment mode.
+        - !Ref PublicSubnet01
+      Users:
+        - ConsoleAccess: true
+          Groups:
+            - Administrators
+          Password: G35rGxSwVtST
+          Username: admin
+
+  amazonmqConfiguration:
+    Type: AWS::AmazonMQ::Configuration
+    Properties: 
+      Data:         
+        !Base64 |
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <broker schedulePeriodForDestinationPurge="10000" schedulerSupport="true" xmlns="http://activemq.apache.org/schema/core">
+          <destinationPolicy>
+              <policyMap>
+                <policyEntries>
+                  <policyEntry gcInactiveDestinations="true" inactiveTimoutBeforeGC="600000" topic="&gt;">
+                    <pendingMessageLimitStrategy>
+                      <constantPendingMessageLimitStrategy limit="1000"/>
+                    </pendingMessageLimitStrategy>
+                  </policyEntry>
+                  <policyEntry gcInactiveDestinations="true" inactiveTimoutBeforeGC="600000" queue="&gt;"/>
+                  <policyEntry gcInactiveDestinations="false" queue="BENJI.&gt;">
+                    <pendingMessageLimitStrategy>
+                      <constantPendingMessageLimitStrategy limit="-1"/>
+                    </pendingMessageLimitStrategy>
+                  </policyEntry>
+                </policyEntries>
+              </policyMap>
+            </destinationPolicy>
+            <plugins>
+              <authorizationPlugin>
+                <map>
+                  <authorizationMap>
+                    <authorizationEntries>
+                      <authorizationEntry admin="producers,consumers,admins" queue="BENJI.&gt;" read="consumers" write="producers"/>
+                      <authorizationEntry admin="producers,consumers,admins" read="consumers" topic="ActiveMQ.Advisory.&gt;" write="producers"/>
+                    </authorizationEntries>
+                    <tempDestinationAuthorizationEntry>
+                      <tempDestinationAuthorizationEntry admin="tempDestinationAdmins" read="tempDestinationAdmins" write="tempDestinationAdmins"/>
+                    </tempDestinationAuthorizationEntry>
+                  </authorizationMap>
+                </map>
+              </authorizationPlugin>
+              <forcePersistencyModeBrokerPlugin persistenceFlag="true"/>
+            </plugins>
+            <networkConnectors/>
+          </broker>
+      Description: !Ref AWS::StackName
+      EngineType: ACTIVEMQ
+      EngineVersion: !FindInMap [ Environment, !Ref Environment, EngineVersion ]
+      Name: !Ref AWS::StackName
+
+  amazonmqConfigurationAssociation:
+    Type: AWS::AmazonMQ::ConfigurationAssociation
+    Properties: 
+      Broker: !Ref amazonmqBroker
+      Configuration: 
+        Id: !Ref amazonmqConfiguration
+        Revision: !GetAtt amazonmqConfiguration.Revision
+
+  amazonmqRoute53RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z1X80I6XVZF6F8
+      Name: !Sub amazonmq-${Environment}.cloudavail.com.
+      Type: A
+      TTL: 300
+      ResourceRecords: 
+        - 192.0.4.80
+
+Outputs: {}
