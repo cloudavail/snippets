@@ -104,7 +104,8 @@ Resources:
         - ConsoleAccess: true
           Groups:
             - Administrators
-          Password: G35rGxSwVtST
+          # Password stored in Systems Manager Parameter store
+          Password: '{{resolve:ssm-secure:/amazonmq/MasterUserPassword:1}}'
           Username: admin
 
   amazonmqConfiguration:

@@ -21,6 +21,9 @@ aws cloudformation create-change-set --stack-name amazonmq1-$environment \
   --region $region --profile default
 ```
 
-# Delete a Shared Queue Stack
+# Delete a Amazon MQ Stack
 
 `aws cloudformation delete-stack --stack-name amazonmq-$environment`
+
+# Other Notes
+- After creating/updating the stack, you need to enable "event expiration" within the UI or try and create the "Log Group" in CloudFormation and specify and "Event Expiration"
