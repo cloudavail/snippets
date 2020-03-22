@@ -10,7 +10,9 @@ At present, the AmazonMQ creates a CloudWatch "Log Group" with the "id part" of 
 
 1. It does not appear to be possible to change the "id part" of the broker ARN as this does not use the "Broker Name" property.
 2. The CloudWatch Log Group is created without an "Event Expiration" policy.
-3. We have no experimented with creating the Log Group in CloudFormation, prior to the creation of the first logs being sent in.
+3. Cannot !Sub $BrokerARN as part of LogGroupName.
+4. Event Expiration must be enabled through UI.
+5. Remember to remove Log Groups if Deleting stack.
 
 # Validate an AmazonMQ Stack
 
