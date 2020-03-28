@@ -3,7 +3,7 @@
 # Note that this script does not use the official install procedure from
 # https://docs.gitlab.com/runner/install/linux-manually.html
 
-echo "LogDNA Ingention Key: $LOGDNA_KEY"
+echo "LogDNA Ingestion Key: $LOGDNA_KEY"
 
 # install procedure is from https://app.logdna.com/account/onboarding
 echo "deb https://repo.logdna.com stable main" | sudo tee /etc/apt/sources.list.d/logdna.list
