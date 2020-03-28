@@ -1,11 +1,11 @@
-# objective: create a vagrant instance that runs docker
+# objective: create a vagrant instance that runs fluentd
 
 vagrantfile_api_version = "2"
 
 Vagrant.configure(vagrantfile_api_version) do |config|
 
   config.vm.hostname = "fluentd"
-  config.vm.box = "ubuntu/wily64"
+  config.vm.box = "ubuntu/bionic64"
   config.vm.provision "shell", path: "./ubuntu_install_fluentd_gem.sh"
 
 end
