@@ -48,7 +48,7 @@ resource "aws_iam_policy" "replication" {
       ],
       "Effect": "Allow",
       "Resource": [
-        "${aws_s3_bucket.bucket.arn}"
+        "${aws_s3_bucket.bucket.arn}/*"
       ]
     },
     {
@@ -58,7 +58,7 @@ resource "aws_iam_policy" "replication" {
         "s3:ReplicateTags"
       ],  
       "Effect": "Allow",
-      "Resource": "${aws_s3_bucket.destination.arn}"
+      "Resource": "${aws_s3_bucket.destination.arn}/*"
     }
   ]
 }
