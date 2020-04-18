@@ -7,9 +7,8 @@ Parameters:
 
   DBInstanceInstanceClass:
     AllowedValues:
-    - db.t2.micro
-    Default: db.t2.micro
-    Description: DB Instance InstanceClass
+      - db.t3.micro
+    Default: db.t3.micro
     Type: String
 
   DBInstanceMasterUserPassword:
@@ -49,8 +48,7 @@ Resources:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
 
-  # Two subnets in different AZs are required because a
-  # DBSubnetGroup requires two subnets in unique AZs
+  # Two subnets in different AZs are required because a DBSubnetGroup requires two subnets in unique AZs
   # first subnet - this needs to be in "AZ x"
   PublicSubnet01:
     Type: AWS::EC2::Subnet
@@ -84,10 +82,10 @@ Resources:
     Properties:
       GroupDescription: DB Instance Security Group
       SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 3306
-        ToPort: 3306
-        CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
       VpcId: !Ref VPC
 
   DBInstanceSubnetGroup:
@@ -111,6 +109,6 @@ Resources:
       PubliclyAccessible: true
       StorageType: gp2
       VPCSecurityGroups:
-      - !Ref DBInstanceSecurityGroup
+        - !Ref DBInstanceSecurityGroup
 
 Outputs: {}
