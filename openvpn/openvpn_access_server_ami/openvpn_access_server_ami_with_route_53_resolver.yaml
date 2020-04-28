@@ -43,6 +43,21 @@ Resources:
       CidrBlock: 10.0.0.128/25
       VpcId: !Ref VPC
 
+  # If more than one subnet the VPN needs to access, uncomment and configure CidrBlock.
+  # PrivateSubnet02:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     AvailabilityZone: !Select [ 1, !GetAZs "" ]
+  #     CidrBlock: 10.0.0.0/25
+  #     VpcId: !Ref VPC
+
+  # PrivateSubnet03:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     AvailabilityZone: !Select [ 2, !GetAZs "" ]
+  #     CidrBlock: 10.0.0.0/25
+  #     VpcId: !Ref VPC
+
   PublicInternetRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
