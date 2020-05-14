@@ -77,6 +77,12 @@ Resources:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
 
+  DBInstanceDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: DBInstance DB Parameter Group
+      Family: mysql8.0
+
   DBInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -102,8 +108,10 @@ Resources:
       AllocatedStorage: 20
       BackupRetentionPeriod: 0
       DBInstanceClass: !Ref DBInstanceInstanceClass
+      DBParameterGroupName: !Ref DBInstanceDBParameterGroup
       DBSubnetGroupName: !Ref DBInstanceSubnetGroup
       Engine: MySQL
+      EngineVersion: 8.0.17
       MasterUsername: test
       MasterUserPassword: !Ref DBInstanceMasterUserPassword
       PubliclyAccessible: true
