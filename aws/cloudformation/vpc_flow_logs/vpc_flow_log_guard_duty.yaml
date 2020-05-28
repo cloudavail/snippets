@@ -1,0 +1,225 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create a VPC containing two subnets and an auto scaling group containing instances with Internet access, vpc flow log and GuardDuty.
+
+Parameters:
+  
+  EC2AMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        !Ref InternetGateway
+      RouteTableId:
+        !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        !Ref InternetGateway
+      VpcId:
+        !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId:
+        Ref: VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicInternetRouteTable
+      SubnetId:
+        Ref: PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  WebServersLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref EC2AMI
+        InstanceType: t2.micro
+        KeyName: test-2
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt webServerSecurityGroup.GroupId ]
+
+  webServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server Security Group
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+
+  webServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebServersLaunchTemplate
+        Version: !GetAtt WebServersLaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 2
+      DesiredCapacity: 2
+      LoadBalancerNames:
+      - Ref: webServerELB
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  webServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web Server ELB Security Group
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+
+  webServerELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+      - !Ref PublicSubnet01
+      - !Ref PublicSubnet02
+      SecurityGroups:
+      - !Ref webServerELBSecurityGroup
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+      Listeners:
+      - LoadBalancerPort: 80
+        InstancePort: 80
+        Protocol: HTTP
+      CrossZone: true
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 60
+
+  vpcLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 3
+
+  vpcFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt FlowLogIamRole.Arn
+      LogDestination: !GetAtt vpcLogGroup.Arn
+      ResourceId: !Ref VPC
+      ResourceType: VPC
+      TrafficType: ALL
+
+  FlowLogIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+
+  FlowLogPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+        - !Ref FlowLogIamRole
+      PolicyName: FlowLogPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            Effect: Allow
+            Resource: "*"
+
+  vpcGuardDutyDetector:
+    Type: AWS::GuardDuty::Detector
+    Properties:
+      Enable: True
+      # specifies how frequently finding updates are published. 
+      # Valid values include: FIFTEEN_MINUTES | ONE_HOUR | SIX_HOURS. The default value is SIX_HOURS.
+      FindingPublishingFrequency: FIFTEEN_MINUTES
+
+  # S3 bucket to test guard duty
+  # to test: in s3 console in "$bucketname", in "Permissions" tab, edit "Block All Public Access" to off
+  # wait 15 minutes for Guard Duty UI to list a Finding
+  testS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: testGuardDutyBucket 
