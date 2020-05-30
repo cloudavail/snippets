@@ -1,0 +1,22 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: This stack creates a GuardDuty Detector.
+
+Resources:
+
+  GuardDutyDetector:
+    Type: AWS::GuardDuty::Detector
+    Properties:
+      Enable: True
+      # specifies how frequently finding updates are published. 
+      # Valid values include: FIFTEEN_MINUTES | ONE_HOUR | SIX_HOURS. The default value is SIX_HOURS.
+      FindingPublishingFrequency: FIFTEEN_MINUTES
+  
+  # S3 bucket to test guard duty
+  # to test: in s3 console in "$bucketname", in "Permissions" tab, edit "Block All Public Access" to off
+  # wait 15 minutes for Guard Duty UI to list a Finding 
+  testS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: guarddutytest-2020
