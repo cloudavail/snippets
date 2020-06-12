@@ -86,7 +86,26 @@ Resources:
       # note that if ApplicationName is set and is not unique you
       # will not able able to run a given stack multiple times
       ApplicationName: !Ref AWS::StackName
-            
+
+  ElasticBeanstalkQAIAMRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+
+  ElasticBeanstalkQAInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref ElasticBeanstalkQAIAMRole
+
   ElasticBeanstalkQAConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
     Properties:
@@ -99,8 +118,11 @@ Resources:
           OptionName: MaxSize
           Value: 1
         - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref ElasticBeanstalkQAInstanceProfile
+        - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
-          Value: t2.micro
+          Value: t3.micro
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
@@ -120,8 +142,8 @@ Resources:
         - Namespace: aws:ec2:vpc
           OptionName: AssociatePublicIpAddress
           Value: true
-      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.4 running PHP 5.6
-
+      SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
+  
   ElasticBeanstalkQAEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
@@ -133,6 +155,25 @@ Resources:
       # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
       TemplateName: !Ref ElasticBeanstalkQAConfigurationTemplate
 
+  ElasticBeanstalkProdIAMRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+
+  ElasticBeanstalkProdInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref ElasticBeanstalkProdIAMRole
+
   ElasticBeanstalkProdConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
     Properties:
@@ -140,13 +181,16 @@ Resources:
       OptionSettings:
         - Namespace: aws:autoscaling:asg
           OptionName: MinSize
-          Value: 2
+          Value: 1
         - Namespace: aws:autoscaling:asg
           OptionName: MaxSize
-          Value: 2
+          Value: 1
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
-          Value: t2.micro
+          Value: t3.micro
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref ElasticBeanstalkProdInstanceProfile
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
@@ -166,7 +210,7 @@ Resources:
         - Namespace: aws:ec2:vpc
           OptionName: AssociatePublicIpAddress
           Value: true
-      SolutionStackName: 64bit Amazon Linux 2018.03 v2.8.4 running PHP 5.6
+      SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
 
   ElasticBeanstalkProdEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
