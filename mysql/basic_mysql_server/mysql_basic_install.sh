@@ -1,6 +1,6 @@
 #!/bin/bash
 
-apt -y update
+apt update
 apt -y install mysql-server
 
 # the command below will allow the "root" user in the MySQL user database to login from any location
