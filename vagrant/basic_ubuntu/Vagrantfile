@@ -1,0 +1,8 @@
+vagrantfile_api_version = 2
+
+Vagrant.configure(vagrantfile_api_version) do |config|
+
+  config.vm.box = 'ubuntu/focal64'
+  config.vm.provision(:shell, path: './basic_ubuntu.sh')
+
+end
