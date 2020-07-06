@@ -123,6 +123,11 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: t3.micro
+        - Namespace: aws:autoscaling:trigger
+          OptionName: MeasureName
+          # Value can be: CPUUtilization, Latency, RequestCount, TargetResponseTime
+          # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
+          Value: CPUUtilization
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
@@ -190,6 +195,11 @@ Resources:
           Value: t3.micro
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
+        - Namespace: aws:autoscaling:trigger
+          OptionName: MeasureName
+          # Value can be: CPUUtilization, Latency, RequestCount, TargetResponseTime
+          # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
+          Value: CPUUtilization
           Value: !Ref ElasticBeanstalkProdInstanceProfile
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
