@@ -127,16 +127,19 @@ Resources:
           # Value: Minimum, Maximum, Sum, Average
           Value: Average
         - Namespace: aws:autoscaling:trigger
+          # How many Amazon EC2 instances to add when performing a scaling activity.
           OptionName: UpperBreachScaleIncrement
+          # Only allowed Value is 1
           Value: 1
         - Namespace: aws:autoscaling:trigger
           OptionName: Unit
           # Value: Seconds, Percent, Bytes, Bits, Count, Bytes/Second, Bits/Second, Count/Second
           Value: Percent
         - Namespace: aws:autoscaling:trigger
+          # If the measurement is higher than this number for the breach duration, a trigger is fired.
           OptionName: UpperThreshold
           # Values: 0 to 20000000
-          Value: 100
+          Value: 50
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
