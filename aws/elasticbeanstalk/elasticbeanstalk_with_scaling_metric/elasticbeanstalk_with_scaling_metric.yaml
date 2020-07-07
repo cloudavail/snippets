@@ -61,18 +61,12 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
-  
-  # this SecurityGroup can be:
-  # added as the _only_ security group for ElasticBeanstalk EC2 instances
-  # added in addition to the default ElasticBeanstalk Security Group for EC2 instances
-  # in this particular case, we supplement the default ElasticBeanstalk Security Group
-  # to allow port 22 in from world (you may not wish to do this in your own environment)
-  # or you may wish to create the group and 
+
   ElasticBeanstalkSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: ElasticBeanstalkSecurityGroup
-      GroupDescription: Security Group for all ElasticBeanstalk Environments
+      GroupName: ElasticBeanstalk SecurityGroup
+      GroupDescription: Security Group for ElasticBeanstalk
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -87,7 +81,7 @@ Resources:
       # will not able able to run a given stack multiple times
       ApplicationName: !Ref AWS::StackName
 
-  ElasticBeanstalkQAIAMRole:
+  ElasticBeanstalkIAMRole:
     Type: AWS::IAM::Role
     Properties: 
       AssumeRolePolicyDocument:
@@ -100,13 +94,13 @@ Resources:
       ManagedPolicyArns: 
         - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
 
-  ElasticBeanstalkQAInstanceProfile:
+  ElasticBeanstalkInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: 
       Roles: 
-        - !Ref ElasticBeanstalkQAIAMRole
+        - !Ref ElasticBeanstalkIAMRole
 
-  ElasticBeanstalkQAConfigurationTemplate:
+  ElasticBeanstalkConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApplication
@@ -119,13 +113,14 @@ Resources:
           Value: 1
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
-          Value: !Ref ElasticBeanstalkQAInstanceProfile
+          Value: !Ref ElasticBeanstalkInstanceProfile
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: t3.micro
         - Namespace: aws:autoscaling:trigger
           OptionName: MeasureName
           # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
+          # Values: CPUUtilization, NetworkIn, NetworkOut, DiskWriteOps, DiskReadBytes, DiskReadOps, DiskWriteBytes, Latency, RequestCount, HealthyHostCount, UnhealthyHostCount, TargetResponseTime
           Value: CPUUtilization
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
@@ -138,9 +133,6 @@ Resources:
           # Value: !Join turns the individual subnets into a string
           Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
         - Namespace: aws:autoscaling:launchconfiguration
-          # OptionName: SecurityGroups includes additional security groups
-          # that will be added to EC2 instances in the Auto Scaling Group
-          # that supports the Elastic Beanstalk application
           OptionName: SecurityGroups
           Value: !Ref ElasticBeanstalkSecurityGroup
         - Namespace: aws:ec2:vpc
@@ -148,88 +140,16 @@ Resources:
           Value: true
       SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
   
-  ElasticBeanstalkQAEnvironment:
+  ElasticBeanstalkEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApplication
-      Description: ElasticBeanstalk Environment for QA
+      Description: AWS ElasticBeanstalk Environment
       # EnvironmentName must be greater than or equal to 4 (you can't use "QA")
-      EnvironmentName: !Sub ${AWS::StackName}-QA
+      EnvironmentName: !Sub ${AWS::StackName}
       # TemplateName: with environments where every element is exactly the same
       # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
-      TemplateName: !Ref ElasticBeanstalkQAConfigurationTemplate
+      TemplateName: !Ref ElasticBeanstalkConfigurationTemplate
 
-  # ElasticBeanstalkProdIAMRole:
-  #   Type: AWS::IAM::Role
-  #   Properties: 
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: ec2.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     ManagedPolicyArns: 
-  #       - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
-# 
-  # ElasticBeanstalkProdInstanceProfile:
-  #   Type: AWS::IAM::InstanceProfile
-  #   Properties: 
-  #     Roles: 
-  #       - !Ref ElasticBeanstalkProdIAMRole
-# 
-  # ElasticBeanstalkProdConfigurationTemplate:
-  #   Type: AWS::ElasticBeanstalk::ConfigurationTemplate
-  #   Properties:
-  #     ApplicationName: !Ref ElasticBeanstalkApplication
-  #     OptionSettings:
-  #       - Namespace: aws:autoscaling:asg
-  #         OptionName: MinSize
-  #         Value: 1
-  #       - Namespace: aws:autoscaling:asg
-  #         OptionName: MaxSize
-  #         Value: 1
-  #       - Namespace: aws:autoscaling:launchconfiguration
-  #         OptionName: InstanceType
-  #         Value: t3.micro
-  #       - Namespace: aws:autoscaling:launchconfiguration
-  #         OptionName: IamInstanceProfile
-  #         Value: !Ref ElasticBeanstalkProdInstanceProfile
-  #       - Namespace: aws:autoscaling:trigger
-  #         OptionName: MeasureName
-  #         # # Only one aws:autoscaling:trigger allowed
-  #         # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
-  #         Value: CPUUtilization
-  #       - Namespace: aws:elasticbeanstalk:environment
-  #         OptionName: EnvironmentType
-  #         Value: LoadBalanced
-  #       - Namespace: aws:ec2:vpc
-  #         OptionName: VPCId
-  #         Value: !Ref VPC
-  #       - Namespace: aws:ec2:vpc
-  #         OptionName: Subnets
-  #         # Value: !Join turns the individual subnets into a string
-  #         Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
-  #       - Namespace: aws:autoscaling:launchconfiguration
-  #         # OptionName: SecurityGroups includes additional security groups
-  #         # that will be added to EC2 instances in the Auto Scaling Group
-  #         # that supports the Elastic Beanstalk application
-  #         OptionName: SecurityGroups
-  #         Value: !Ref ElasticBeanstalkSecurityGroup
-  #       - Namespace: aws:ec2:vpc
-  #         OptionName: AssociatePublicIpAddress
-  #         Value: true
-  #     SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
-# 
-  # ElasticBeanstalkProdEnvironment:
-  #   Type: AWS::ElasticBeanstalk::Environment
-  #   Properties:
-  #     ApplicationName: !Ref ElasticBeanstalkApplication
-  #     Description: AWS ElasticBeanstalk Environment for Prod
-  #     # EnvironmentName must be greater than or equal to 4 (you can't use "QA")
-  #     EnvironmentName: !Sub ${AWS::StackName}-Prod
-  #     # TemplateName: with environments where every element is exactly the same
-  #     # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
-  #     TemplateName: !Ref ElasticBeanstalkProdConfigurationTemplate
 
 Outputs: {}

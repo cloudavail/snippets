@@ -1,6 +1,6 @@
 # Objective
 
-To create a basic Elastic Beanstalk stack in CloudFormation that utilizes provides a "QA" and "Prod" environment. This setup allows code to be deployed first to "QA", tested and then the same code can be deployed to "Prod".
+To create a basic Elastic Beanstalk stack in CloudFormation that utilizes CPU Utilization (or some other metric allowed by AWS) instead of the default "NetworkOut" for autoscaling an elasticbeanstalk instance.
 
 # Updating the Solution Stack
 
@@ -12,12 +12,12 @@ To create a basic Elastic Beanstalk stack in CloudFormation that utilizes provid
 
 # Create a BasicEBwithPHP Stack
 
-`aws cloudformation create-stack --stack-name EBwithMultipleEnvsandScalingMetric --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_scaling_metric.yaml`
+`aws cloudformation create-stack --stack-name EBwithCPUUtilizationScaling --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_scaling_metric.yaml`
 
 # Update a BasicEBwithPHP Stack
 
-`aws cloudformation update-stack --stack-name EBwithMultipleEnvsandScalingMetric --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_scaling_metric.yaml`
+`aws cloudformation update-stack --stack-name EBwithCPUUtilizationScaling --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_scaling_metric.yaml`
 
 # Delete a BasicEBwithPHP Stack
 
-`aws cloudformation delete-stack --stack-name EBwithMultipleEnvsandScalingMetric`
+`aws cloudformation delete-stack --stack-name EBwithCPUUtilizationScaling`
