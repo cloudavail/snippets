@@ -16,7 +16,7 @@ To create a basic Elastic Beanstalk stack in CloudFormation that utilizes provid
 
 # Update a BasicEBwithPHP Stack
 
-`aws cloudformation update-stack --stack-name EBwithMultipleEnvsandScalingMetrics --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_scaling_metric.yaml`
+`aws cloudformation update-stack --stack-name EBwithMultipleEnvsandScalingMetric --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_scaling_metric.yaml`
 
 # Delete a BasicEBwithPHP Stack
 

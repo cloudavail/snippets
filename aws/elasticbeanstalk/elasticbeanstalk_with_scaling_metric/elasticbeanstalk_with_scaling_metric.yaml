@@ -125,7 +125,6 @@ Resources:
           Value: t3.micro
         - Namespace: aws:autoscaling:trigger
           OptionName: MeasureName
-          # Value can be: CPUUtilization, Latency, RequestCount, TargetResponseTime
           # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
           Value: CPUUtilization
         - Namespace: aws:elasticbeanstalk:environment
@@ -160,77 +159,77 @@ Resources:
       # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
       TemplateName: !Ref ElasticBeanstalkQAConfigurationTemplate
 
-  ElasticBeanstalkProdIAMRole:
-    Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns: 
-        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
-
-  ElasticBeanstalkProdInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties: 
-      Roles: 
-        - !Ref ElasticBeanstalkProdIAMRole
-
-  ElasticBeanstalkProdConfigurationTemplate:
-    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
-    Properties:
-      ApplicationName: !Ref ElasticBeanstalkApplication
-      OptionSettings:
-        - Namespace: aws:autoscaling:asg
-          OptionName: MinSize
-          Value: 1
-        - Namespace: aws:autoscaling:asg
-          OptionName: MaxSize
-          Value: 1
-        - Namespace: aws:autoscaling:launchconfiguration
-          OptionName: InstanceType
-          Value: t3.micro
-        - Namespace: aws:autoscaling:launchconfiguration
-          OptionName: IamInstanceProfile
-        - Namespace: aws:autoscaling:trigger
-          OptionName: MeasureName
-          # Value can be: CPUUtilization, Latency, RequestCount, TargetResponseTime
-          # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
-          Value: CPUUtilization
-          Value: !Ref ElasticBeanstalkProdInstanceProfile
-        - Namespace: aws:elasticbeanstalk:environment
-          OptionName: EnvironmentType
-          Value: LoadBalanced
-        - Namespace: aws:ec2:vpc
-          OptionName: VPCId
-          Value: !Ref VPC
-        - Namespace: aws:ec2:vpc
-          OptionName: Subnets
-          # Value: !Join turns the individual subnets into a string
-          Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
-        - Namespace: aws:autoscaling:launchconfiguration
-          # OptionName: SecurityGroups includes additional security groups
-          # that will be added to EC2 instances in the Auto Scaling Group
-          # that supports the Elastic Beanstalk application
-          OptionName: SecurityGroups
-          Value: !Ref ElasticBeanstalkSecurityGroup
-        - Namespace: aws:ec2:vpc
-          OptionName: AssociatePublicIpAddress
-          Value: true
-      SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
-
-  ElasticBeanstalkProdEnvironment:
-    Type: AWS::ElasticBeanstalk::Environment
-    Properties:
-      ApplicationName: !Ref ElasticBeanstalkApplication
-      Description: AWS ElasticBeanstalk Environment for Prod
-      # EnvironmentName must be greater than or equal to 4 (you can't use "QA")
-      EnvironmentName: !Sub ${AWS::StackName}-Prod
-      # TemplateName: with environments where every element is exactly the same
-      # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
-      TemplateName: !Ref ElasticBeanstalkProdConfigurationTemplate
+  # ElasticBeanstalkProdIAMRole:
+  #   Type: AWS::IAM::Role
+  #   Properties: 
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: ec2.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns: 
+  #       - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+# 
+  # ElasticBeanstalkProdInstanceProfile:
+  #   Type: AWS::IAM::InstanceProfile
+  #   Properties: 
+  #     Roles: 
+  #       - !Ref ElasticBeanstalkProdIAMRole
+# 
+  # ElasticBeanstalkProdConfigurationTemplate:
+  #   Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+  #   Properties:
+  #     ApplicationName: !Ref ElasticBeanstalkApplication
+  #     OptionSettings:
+  #       - Namespace: aws:autoscaling:asg
+  #         OptionName: MinSize
+  #         Value: 1
+  #       - Namespace: aws:autoscaling:asg
+  #         OptionName: MaxSize
+  #         Value: 1
+  #       - Namespace: aws:autoscaling:launchconfiguration
+  #         OptionName: InstanceType
+  #         Value: t3.micro
+  #       - Namespace: aws:autoscaling:launchconfiguration
+  #         OptionName: IamInstanceProfile
+  #         Value: !Ref ElasticBeanstalkProdInstanceProfile
+  #       - Namespace: aws:autoscaling:trigger
+  #         OptionName: MeasureName
+  #         # # Only one aws:autoscaling:trigger allowed
+  #         # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
+  #         Value: CPUUtilization
+  #       - Namespace: aws:elasticbeanstalk:environment
+  #         OptionName: EnvironmentType
+  #         Value: LoadBalanced
+  #       - Namespace: aws:ec2:vpc
+  #         OptionName: VPCId
+  #         Value: !Ref VPC
+  #       - Namespace: aws:ec2:vpc
+  #         OptionName: Subnets
+  #         # Value: !Join turns the individual subnets into a string
+  #         Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
+  #       - Namespace: aws:autoscaling:launchconfiguration
+  #         # OptionName: SecurityGroups includes additional security groups
+  #         # that will be added to EC2 instances in the Auto Scaling Group
+  #         # that supports the Elastic Beanstalk application
+  #         OptionName: SecurityGroups
+  #         Value: !Ref ElasticBeanstalkSecurityGroup
+  #       - Namespace: aws:ec2:vpc
+  #         OptionName: AssociatePublicIpAddress
+  #         Value: true
+  #     SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
+# 
+  # ElasticBeanstalkProdEnvironment:
+  #   Type: AWS::ElasticBeanstalk::Environment
+  #   Properties:
+  #     ApplicationName: !Ref ElasticBeanstalkApplication
+  #     Description: AWS ElasticBeanstalk Environment for Prod
+  #     # EnvironmentName must be greater than or equal to 4 (you can't use "QA")
+  #     EnvironmentName: !Sub ${AWS::StackName}-Prod
+  #     # TemplateName: with environments where every element is exactly the same
+  #     # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
+  #     TemplateName: !Ref ElasticBeanstalkProdConfigurationTemplate
 
 Outputs: {}
