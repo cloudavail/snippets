@@ -120,8 +120,26 @@ Resources:
         - Namespace: aws:autoscaling:trigger
           OptionName: MeasureName
           # https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-general.html#command-options-general-autoscalingtrigger
-          # Values: CPUUtilization, NetworkIn, NetworkOut, DiskWriteOps, DiskReadBytes, DiskReadOps, DiskWriteBytes, Latency, RequestCount, HealthyHostCount, UnhealthyHostCount, TargetResponseTime
+          # Value: CPUUtilization, NetworkIn, NetworkOut, DiskWriteOps, DiskReadBytes, DiskReadOps, DiskWriteBytes, Latency, RequestCount, HealthyHostCount, UnhealthyHostCount, TargetResponseTime
           Value: CPUUtilization
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Statistic
+          # Value: Minimum, Maximum, Sum, Average
+          Value: Average
+        - Namespace: aws:autoscaling:trigger
+          # How many Amazon EC2 instances to add when performing a scaling activity.
+          OptionName: UpperBreachScaleIncrement
+          # Only allowed Value is 1
+          Value: 1
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Unit
+          # Value: Seconds, Percent, Bytes, Bits, Count, Bytes/Second, Bits/Second, Count/Second
+          Value: Percent
+        - Namespace: aws:autoscaling:trigger
+          # If the measurement is higher than this number for the breach duration, a trigger is fired.
+          OptionName: UpperThreshold
+          # Values: 0 to 20000000
+          Value: 50
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: EnvironmentType
           Value: LoadBalanced
