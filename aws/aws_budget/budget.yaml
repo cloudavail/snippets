@@ -33,8 +33,8 @@ Resources:
             Threshold: 10
             # The type of threshold for a notification. Either ABSOLUTE_VALUE or PERCENTAGE
             ThresholdType: PERCENTAGE
-          # up to 5 subscribers
           Subscribers:
+          # up to 5 subscribers
             - Address: someone@example.com
               SubscriptionType: EMAIL
 
