@@ -1,0 +1,43 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for creating an AWS Budget.
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  AWSBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetLimit:
+          # Set Budget Amount
+          Amount: 15
+          Unit: USD
+        BudgetName: !Sub ${AWS::StackName}
+        # Allowed values: COST | RI_COVERAGE | RI_UTILIZATION | SAVINGS_PLANS_COVERAGE | SAVINGS_PLANS_UTILIZATION | USAGE
+        BudgetType: COST
+        # Allowed values: ANNUALLY | DAILY | MONTHLY | QUARTERLY
+        TimeUnit: MONTHLY
+      NotificationsWithSubscribers:
+        - Notification:
+            # The comparison that is used for this notification.
+            ComparisonOperator: GREATER_THAN
+            # Whether the notification is for how much you have spent (ACTUAL) or for how much you're forecasted to spend (FORECASTED).
+            NotificationType: FORECASTED
+            # The threshold that is associated with a notification. Thresholds are always a percentage.
+            Threshold: 10
+            # The type of threshold for a notification. Either ABSOLUTE_VALUE or PERCENTAGE
+            ThresholdType: PERCENTAGE
+          # up to 5 subscribers
+          Subscribers:
+            - Address: someone@example.com
+              SubscriptionType: EMAIL
+
+Outputs: {}
+
+
