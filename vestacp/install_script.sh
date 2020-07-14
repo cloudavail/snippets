@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-echo "Debian 9.12 has started"
+echo "Ubuntu has started"
 sudo apt -y update
 sudo apt -y upgrade
 sudo apt -y install curl
