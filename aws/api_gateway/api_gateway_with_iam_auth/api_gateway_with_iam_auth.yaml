@@ -1,0 +1,53 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: API Gateway
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      EndpointConfiguration: 
+        Types: 
+          - REGIONAL
+      Name: APIGatewayWithIAMAuth
+
+  ApiGatewayIAMAuthorizedResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: iamauth
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayIAMAuthorizedGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: AWS_IAM
+      HttpMethod: GET
+      Integration:
+        Type: MOCK
+      ResourceId: !Ref ApiGatewayIAMAuthorizedResource
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayNoAuthorizedResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: noauth
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayNoAuthorizedGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        Type: MOCK
+      ResourceId: !Ref ApiGatewayNoAuthorizedResource
+      RestApiId: !Ref ApiGatewayRestApi
