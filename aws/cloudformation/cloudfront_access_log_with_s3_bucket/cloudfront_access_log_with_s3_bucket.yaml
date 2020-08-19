@@ -10,10 +10,9 @@ Resources:
 
   S3Bucket:
     Type: AWS::S3::Bucket
-    Properties:
-      BucketName: s3.cloudavail
 
   CloudFrontDistribution:
+    DependsOn: S3Bucket
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
@@ -26,8 +25,7 @@ Resources:
         Enabled: true
         HttpVersion: http2
         Logging:
-          # Cannot !Ref to S3Bucket
-          Bucket: s3.cloudavail.s3.amazonaws.com
+          Bucket: !GetAtt S3Bucket.DomainName
           IncludeCookies: true
           Prefix: logs/
         Origins:
