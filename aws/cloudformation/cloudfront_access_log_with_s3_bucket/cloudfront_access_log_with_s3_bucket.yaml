@@ -2,7 +2,7 @@
 
 AWSTemplateFormatVersion: 2010-09-09
 
-Description: CloudFront Distribution with an S3 Bucket for serving content to CloudFront
+Description: Description: CloudFront Distribution with Access Logging and an S3 Bucket for serving content to CloudFront
 
 Parameters: {}
 
