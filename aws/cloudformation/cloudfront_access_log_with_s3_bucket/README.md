@@ -20,3 +20,4 @@ export AWS_PROFILE='cloudavail'
 ## Step
 Once CloudFormation stack is built, you can:
 - Use Athena to query CloudFront Logs
+https://docs.aws.amazon.com/athena/latest/ug/cloudfront-logs.html
