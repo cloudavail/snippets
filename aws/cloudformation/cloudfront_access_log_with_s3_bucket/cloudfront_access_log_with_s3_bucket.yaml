@@ -2,7 +2,7 @@
 
 AWSTemplateFormatVersion: 2010-09-09
 
-Description: Description: CloudFront Distribution with Access Logging and an S3 Bucket for serving content to CloudFront
+Description: CloudFront Distribution with Access Logging and an S3 Bucket for serving content to CloudFront
 
 Parameters: {}
 
@@ -11,10 +11,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: LogDeliveryWrite
-      BucketName: s3.cloudavail.com
-      LoggingConfiguration:
-        DestinationBucketName: s3.cloudavail.com
+      BucketName: s3.cloudavail
 
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -29,11 +26,12 @@ Resources:
         Enabled: true
         HttpVersion: http2
         Logging:
-          Bucket: s3.cloudavail.com.s3.amazonaws.com
+          # Cannot !Ref to S3Bucket
+          Bucket: s3.cloudavail.s3.amazonaws.com
           IncludeCookies: true
           Prefix: logs/
         Origins:
-          - DomainName: !GetAtt S3Bucket.DomainName
+          - DomainName: !GetAtt S3Bucket.RegionalDomainName
             CustomOriginConfig:
               HTTPPort: 80
               OriginProtocolPolicy: http-only
