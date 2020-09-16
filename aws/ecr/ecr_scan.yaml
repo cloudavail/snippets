@@ -8,11 +8,11 @@ Mappings: {}
 
 Resources:
 
-  # ECRTestRepository:
-  #   Type: AWS::ECR::Repository
-  #   Properties:
-  #     ImageScanningConfiguration:
-  #       scanOnPush: true
+  ECRTestRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        scanOnPush: true
 
   ECRTestNotificationsTopic:
     Type: AWS::SNS::Topic
