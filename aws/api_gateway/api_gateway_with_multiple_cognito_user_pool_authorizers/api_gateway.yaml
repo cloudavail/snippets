@@ -1,0 +1,86 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: API Gateway
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  CognitoUserPoolOne:
+    Type: AWS::Cognito::UserPool
+    Properties:
+     AdminCreateUserConfig:
+       AllowAdminCreateUserOnly: true
+
+  CognitoUserPoolTwo:
+    Type: AWS::Cognito::UserPool
+    Properties:
+     AdminCreateUserConfig:
+       AllowAdminCreateUserOnly: true
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      EndpointConfiguration: 
+        Types: 
+          - REGIONAL
+      Name: ApiGateway
+
+  ApiGatewayAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      IdentitySource: method.request.header.name
+      Name: !Sub ${AWS::StackName}-Authorizer
+      ProviderARNs: 
+        - !GetAtt CognitoUserPoolOne.Arn
+        - !GetAtt CognitoUserPoolTwo.Arn
+      RestApiId: !Ref ApiGatewayRestApi
+      Type: COGNITO_USER_POOLS
+
+  ApiGatewayTestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: test
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayTestGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiGatewayAuthorizer
+      HttpMethod: GET
+      Integration: 
+        IntegrationHttpMethod: GET
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: Empty
+        Type: HTTP
+        Uri: http://cloudavail.com
+      MethodResponses: 
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+      ResourceId: !Ref ApiGatewayTestResource
+      RestApiId: !Ref ApiGatewayRestApi
+  
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties: 
+      DeploymentId: !Ref ApiGatewayDeployment
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: prod
+
+  ApiGatewayDeployment:
+    # without the DependsOn dependency, the ApiGatewayDeployment will be
+    # created immediately after the creation of the AWS::ApiGateway::RestApi
+    DependsOn:
+      - ApiGatewayTestGetMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties: 
+      RestApiId: !Ref ApiGatewayRestApi
