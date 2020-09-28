@@ -6,8 +6,7 @@ Parameters:
 
   ECRTestNotificationsTopicEmailEndpoint:
     Type: String
-    Default: colin@cloudavail.com
-
+    Default: user@example.com
 
 Mappings: {}
 
