@@ -1,0 +1,77 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  ECRTestRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        scanOnPush: true
+
+  ECRTestNotificationsTopic:
+    Type: AWS::SNS::Topic
+
+  ECRTestNotificationsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties: 
+      # email or group email to receive notifications
+      Endpoint: customer@email.com
+      # FilterPolicy: '{"criticality": ["..."]}'
+      Protocol: email
+      TopicArn: !Ref ECRTestNotificationsTopic
+
+  # create event to trigger when scanning is complete
+  ECRTestEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: A CloudWatch Event Rule that triggers when each ECR vulnerability image scan is completed.
+      EventPattern:
+        detail-type:
+          - ECR Image Scan
+        source:
+          - aws.ecr
+      State: ENABLED
+      Targets:
+        - Arn:
+            Ref: ECRTestNotificationsTopic
+          Id: target-id1
+
+  ECRTestNotificationsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - 'SNS:GetTopicAttributes'
+              - 'SNS:SetTopicAttributes'
+              - 'SNS:AddPermission'
+              - 'SNS:RemovePermission'
+              - 'SNS:DeleteTopic'
+              - 'SNS:Subscribe'
+              - 'SNS:ListSubscriptionsByTopic'
+              - 'SNS:Publish'
+              - 'SNS:Receive'
+            Resource:
+              Ref: ECRTestNotificationsTopic
+            Condition:
+              StringEquals:
+                'AWS:SourceOwner':
+                  Ref: 'AWS::AccountId'
+          - Sid: TrustCWEToPublishEventsToMyTopic
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: 'sns:Publish'
+            Resource:
+              Ref: ECRTestNotificationsTopic
+      Topics:
+        - Ref: ECRTestNotificationsTopic
