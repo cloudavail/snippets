@@ -7,8 +7,8 @@ export AWS_REGION='us-west-2'
 - Locate S3 Bucket Name and Region
 - In CloudFormation console, Create Stack with existing resources (import resources)
 - Upload template file that mirrors S3 Bucket
-- Enter S3 Bucket Name
-- Enter stack-name
+- Enter S3 Bucket Name you want to import
+- Enter stack-name: `s3-import-test`
 
 ## Validate CloudFormation
 aws cloudformation validate-template --template-body file://s3_import.yaml
