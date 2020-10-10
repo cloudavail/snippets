@@ -1,0 +1,56 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  ECRTestNotificationsTopicEmailEndpoint:
+    Type: String
+    Default: user@example.com
+
+Mappings: {}
+
+Resources:
+
+  ECRTestRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        scanOnPush: true
+      RepositoryName: cloudavail/ecr-with-scan-test
+
+  ECRTestNotificationsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription: 
+        - Endpoint: !Ref ECRTestNotificationsTopicEmailEndpoint
+          Protocol: email-json
+      TopicName: ecr-test-notifications-topic
+
+  # create event to trigger when scanning is complete
+  ECRTestEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: A CloudWatch Event Rule that triggers when each ECR vulnerability image scan is completed.
+      EventPattern:
+        detail-type:
+          - ECR Image Scan
+        source:
+          - aws.ecr
+      State: ENABLED
+      Targets:
+        - Arn: !Ref ECRTestNotificationsTopic
+          Id: target-id1
+
+  ECRTestNotificationsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+          - Sid: TrustCWEToPublishEventsToMyTopic
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource:
+              !Ref ECRTestNotificationsTopic
+      Topics:
+        - !Ref ECRTestNotificationsTopic
