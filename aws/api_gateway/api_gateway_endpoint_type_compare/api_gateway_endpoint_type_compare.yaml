@@ -104,6 +104,11 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties: 
       GroupDescription: !Sub ${AWS::StackName}-vpcendpoint-security-group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 10.0.0.0/24
       VpcId: !Ref VPC
 
   PrivateApiGatewayVPCEndpoint:

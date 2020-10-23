@@ -7,10 +7,10 @@ Description: API Gateway With Private Link
 Parameters:
 
   # using Ubuntu AMIs from https://cloud-images.ubuntu.com/locator/ec2/
-  # search string for 20.04 LTS hvm:ebs-ssd amd64
+  # search string for 18.04 LTS hvm:ebs-ssd amd64
   WebServerImageId:
-    Type: AWS::EC2::Image::Id
-    Default: ami-0ba8629bff503c084
+    Type: AWS::EC2::Image::Id    
+    Default: ami-06d51e91cea0dac8d
 
   WebServerInstanceType:
     Type: String
@@ -20,7 +20,7 @@ Parameters:
 
   WebServerKeyName:
     Type: AWS::EC2::KeyPair::KeyName
-    Default: APIGatewayWithPrivatelink
+    Default: WebServerTest
 
 Mappings: {}
 
@@ -34,14 +34,14 @@ Resources:
           - REGIONAL
       Name: ApiGateway
 
-  ApiGatewayWebResource:
+  ApiGatewayTestResource:
     Type: AWS::ApiGateway::Resource
     Properties: 
       ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
-      PathPart: web
+      PathPart: test
       RestApiId: !Ref ApiGatewayRestApi
 
-  ApiGatewayWebGetMethod:
+  ApiGatewayTestGetMethod:
     Type: AWS::ApiGateway::Method
     Properties: 
       AuthorizationType: NONE
@@ -53,21 +53,21 @@ Resources:
         IntegrationHttpMethod: GET
         Type: HTTP_PROXY
         Uri: !Sub http://${WebServerLoadBalancer.DNSName}/index.html
-      ResourceId: !Ref ApiGatewayWebResource
+      ResourceId: !Ref ApiGatewayTestResource
       RestApiId: !Ref ApiGatewayRestApi
   
-  ApiGatewayv1Stage:
+  ApiGatewayStage:
     Type: AWS::ApiGateway::Stage
     Properties: 
       DeploymentId: !Ref ApiGatewayDeployment
       RestApiId: !Ref ApiGatewayRestApi
-      StageName: v1
+      StageName: prod
 
   ApiGatewayDeployment:
     # without the DependsOn dependency, the ApiGatewayDeployment will be
     # created immediately after the creation of the AWS::ApiGateway::RestApi
     DependsOn:
-      - ApiGatewayWebGetMethod
+      - ApiGatewayTestGetMethod
     Type: AWS::ApiGateway::Deployment
     Properties: 
       RestApiId: !Ref ApiGatewayRestApi
@@ -196,7 +196,7 @@ Resources:
             <!DOCTYPE html>
             <html>
             <body>
-            <h1>Home</h1>
+            <h1>Testing</h1>
             </body>
             </html>
             EOF

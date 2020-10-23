@@ -80,15 +80,15 @@ Resources:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
 
-  ApiGatewayRestApi:
+  PrivateApiGatewayRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties: 
       EndpointConfiguration: 
         Types: 
           - PRIVATE
         VpcEndpointIds:
-          - !Ref ApiGatewayVPCEndpoint
-      Name: api-gateway-in-vpc
+          - !Ref PrivateApiGatewayVPCEndpoint
+      Name: private-api-gateway
       Policy:
         Statement:
           - Effect: Allow
@@ -100,33 +100,33 @@ Resources:
             Resource: execute-api:/*/*/*
         Version: 2012-10-17
 
-  ApiGatewayVPCEndpointSecurityGroup:
+  PrivateApiGatewayVPCEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties: 
       GroupDescription: !Sub ${AWS::StackName}-vpcendpoint-security-group
       VpcId: !Ref VPC
 
-  ApiGatewayVPCEndpoint:
+  PrivateApiGatewayVPCEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties: 
       PrivateDnsEnabled: true
       SecurityGroupIds: 
-        - !Ref ApiGatewayVPCEndpointSecurityGroup
+        - !Ref PrivateApiGatewayVPCEndpointSecurityGroup
       ServiceName: com.amazonaws.us-west-2.execute-api
-      SubnetIds: 
-        - !Ref PublicSubnet01
-        - !Ref PublicSubnet02
+      # SubnetIds: 
+      #   - !Ref PublicSubnet01
+      #   - !Ref PublicSubnet02
       VpcEndpointType: Interface
       VpcId: !Ref VPC
 
-  ApiGatewayTestResource:
+  PrivateApiGatewayTestResource:
     Type: AWS::ApiGateway::Resource
     Properties: 
-      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      ParentId: !GetAtt PrivateApiGatewayRestApi.RootResourceId
       PathPart: test
-      RestApiId: !Ref ApiGatewayRestApi
+      RestApiId: !Ref PrivateApiGatewayRestApi
 
-  ApiGatewayTestGetMethod:
+  PrivateApiGatewayTestGetMethod:
     Type: AWS::ApiGateway::Method
     Properties: 
       AuthorizationType: NONE
@@ -143,24 +143,75 @@ Resources:
         - StatusCode: 200
           ResponseModels:
             application/json: Empty
-      ResourceId: !Ref ApiGatewayTestResource
-      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref PrivateApiGatewayTestResource
+      RestApiId: !Ref PrivateApiGatewayRestApi
   
-  ApiGatewayStage:
+  PrivateApiGatewayStage:
     Type: AWS::ApiGateway::Stage
     Properties: 
-      DeploymentId: !Ref ApiGatewayDeployment
-      RestApiId: !Ref ApiGatewayRestApi
+      DeploymentId: !Ref PrivateApiGatewayDeployment
+      RestApiId: !Ref PrivateApiGatewayRestApi
       StageName: prod
 
-  ApiGatewayDeployment:
-    # without the DependsOn dependency, the ApiGatewayDeployment will be
+  PrivateApiGatewayDeployment:
+    # without the DependsOn dependency, the PrivateApiGatewayDeployment will be
     # created immediately after the creation of the AWS::ApiGateway::RestApi
     DependsOn:
-      - ApiGatewayTestGetMethod
+      - PrivateApiGatewayTestGetMethod
     Type: AWS::ApiGateway::Deployment
     Properties: 
-      RestApiId: !Ref ApiGatewayRestApi
+      RestApiId: !Ref PrivateApiGatewayRestApi
+
+  PublicApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties: 
+      EndpointConfiguration: 
+        Types: 
+          - REGIONAL
+      Name: public-api-gateway
+
+  PublicApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties: 
+      DeploymentId: !Ref PublicApiGatewayDeployment
+      RestApiId: !Ref PublicApiGatewayRestApi
+      StageName: prod
+
+  PublicApiGatewayDeployment:
+    # without the DependsOn dependency, the PublicApiGatewayDeployment will be
+    # created immediately after the creation of the AWS::ApiGateway::RestApi
+    DependsOn:
+      - PublicApiGatewayTestGetMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties: 
+      RestApiId: !Ref PublicApiGatewayRestApi
+
+  PublicApiGatewayTestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt PublicApiGatewayRestApi.RootResourceId
+      PathPart: test
+      RestApiId: !Ref PublicApiGatewayRestApi
+
+  PublicApiGatewayTestGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties: 
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration: 
+        IntegrationHttpMethod: GET
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: Empty
+        Type: HTTP
+        Uri: http://cloudavail.com
+      MethodResponses: 
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+      ResourceId: !Ref PublicApiGatewayTestResource
+      RestApiId: !Ref PublicApiGatewayRestApi
 
   TestServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
