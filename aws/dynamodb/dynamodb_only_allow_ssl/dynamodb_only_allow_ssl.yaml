@@ -1,0 +1,27 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create an IAM Policy that allows DynamoDB Activity via SSL
+
+Resources:
+
+  DynamoDBSSLOnlyIAMSPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Groups:
+        - !Ref DynamoDBSSLOnlyIAMGroup
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:*
+            Resource: '*'
+            Condition:
+              Bool:
+                aws:SecureTransport: true
+      PolicyName: DynamoDBSSLOnlyIAMSPolicy
+
+  DynamoDBSSLOnlyIAMGroup:
+    Type: AWS::IAM::Group
