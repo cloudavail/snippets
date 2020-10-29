@@ -1,0 +1,193 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicSubnetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/26
+      VpcId: !Ref VPC
+      Tags:
+        - Key: kubernetes.io/role/elb
+          Value: 1
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.64/26
+      VpcId: !Ref VPC
+      Tags:
+        - Key: kubernetes.io/role/elb
+          Value: 1
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  NATSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  NATSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+      Tags:
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
+
+  NATSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.192/26
+      VpcId: !Ref VPC
+      Tags:
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
+
+  NATSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NATSubnetRouteTable
+      SubnetId: !Ref NATSubnet01
+
+  NATSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NATSubnetRouteTable
+      SubnetId: !Ref NATSubnet02
+
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties: 
+      Domain: vpc
+
+  NATGateway:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties: 
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet01
+
+  NATInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+      RouteTableId: !Ref NATSubnetRouteTable
+
+  # the EKSServiceIAMRole is described here:
+  # https://docs.aws.amazon.com/eks/latest/userguide/getting-started-console.html
+  EKSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # - arn:aws:iam::aws:policy/aws-service-role/AmazonEKSForFargateServiceRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EKS Cluster
+      VpcId: !Ref VPC
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties: 
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref EKSClusterSecurityGroup
+        SubnetIds:
+          # Specifies subnets that will host resources used in your EKS Cluster
+          # these "resources" include EC2 Instances (nodes) and Load Balancers
+          # best practice is:
+          # to use "Public" subnets for Load Balancers that allow access from the Internet
+          # to use "Private" subnets for EC2 Instances (nodes)
+          - !Ref NATSubnet01
+          - !Ref NATSubnet02
+      RoleArn: !GetAtt EKSServiceIAMRole.Arn
+
+  # arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy
+
+  EKSClusterAllPodsFargateProfileIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks-fargate-pods.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy
+
+  EKSClusterAllPodsFargateProfile:
+    Type: AWS::EKS::FargateProfile
+    Properties: 
+      ClusterName: !Ref EKSCluster
+      FargateProfileName: AllPods
+      PodExecutionRoleArn: !GetAtt EKSClusterAllPodsFargateProfileIAMRole.Arn
+      Selectors:
+        # attempts to run all pods in Namespace: default in Fargate
+        - Namespace: default
+      # per https://docs.aws.amazon.com/eks/latest/userguide/getting-started-console.html
+      # Only private subnets are supported for pods running on Fargate; you must deselect any public subnets.
+      Subnets: 
+        - !Ref NATSubnet01
+        - !Ref NATSubnet02
