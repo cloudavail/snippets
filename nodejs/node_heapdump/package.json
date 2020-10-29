@@ -1,0 +1,14 @@
+{
+  "name": "node_heapdump",
+  "version": "1.0.0",
+  "description": "This snippet shows how to use the \"headdump\" module to understand memory usage.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "heapdump": "^0.3.15"
+  }
+}
