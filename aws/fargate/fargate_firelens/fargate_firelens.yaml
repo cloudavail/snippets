@@ -131,11 +131,10 @@ Resources:
   nginxTaskLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      # LogGroupName is not required
       LogGroupName: nginx-task
       RetentionInDays: 1
 
-  nginxTaskIAMRole:
+  nginxTaskExecutionIAMRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -149,6 +148,7 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
 
   nginxTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -156,15 +156,13 @@ Resources:
       ContainerDefinitions:
         - Essential: true
           Image: nginx
-          # unsure if LogConfiguration: awslogs is required for fargate
-          # however, awslogs is the only available logdriver option
           LogConfiguration:
             LogDriver: awsfirelens
             Options:
               # specify Name: cloudwatch
               # if you want logs sent to cloudwatch logs
               Name: cloudwatch
-              region: us-west-2
+              region: !Sub ${AWS::Region}
               # this can be any name, used below as a test
               log_group_name: firelens-testing-fluent-bit
               auto_create_group: true
@@ -186,7 +184,7 @@ Resources:
             Options:
               # Firelens uses Log Group resource
               awslogs-group: !Ref nginxTaskLogGroup
-              awslogs-region: us-west-2
+              awslogs-region: !Sub ${AWS::Region}
               awslogs-create-group: true
               awslogs-stream-prefix: firelens
           MemoryReservation: 50
@@ -195,7 +193,7 @@ Resources:
       Cpu: 256
       # an ExecutionRoleArn is required if a ContainerDefinition contains a LogConfiguration
       # that utilizes LogDriver: awslogs
-      ExecutionRoleArn: !Ref nginxTaskIAMRole
+      ExecutionRoleArn: !Ref nginxTaskExecutionIAMRole
       Family: nginx
       # the Memory property is required if using the Fargate launch type
       Memory: 512
@@ -203,9 +201,9 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      # created a Firelens Role in IAM UI
-      # that allows CloudWatch Logs full access and Task Execution Role Policy
-      TaskRoleArn: arn:aws:iam::187376578462:role/FirelensIAMRole
+      # nginxTaskExecutionIAMRole also has an attached managed policy
+      # for cloudwatch logs
+      TaskRoleArn: !Ref nginxTaskExecutionIAMRole
 
   nginxService:
     Type: AWS::ECS::Service
