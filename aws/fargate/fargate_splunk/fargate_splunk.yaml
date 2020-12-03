@@ -177,8 +177,10 @@ Resources:
             # awslogs, splunk and awsfirelens
             LogDriver: splunk
             Options:
-              splunk-token: '$SPLUNK_TOKEN'
-              splunk-url: 'https://input-prd-p-wkz37khwtbs5.cloud.splunk.com:8088'
+              # user should change variable
+              splunk-token: $SPLUNK_TOKEN
+              splunk-url: https://input-prd-p-wkz37khwtbs5.cloud.splunk.com:8088
+              # instructs driver to skip validation
               splunk-insecureskipverify: true
           MemoryReservation: 100
           Name: nginx
