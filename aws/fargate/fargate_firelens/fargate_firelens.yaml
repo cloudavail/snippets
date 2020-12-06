@@ -1,0 +1,232 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for a Fargate Cluster and Associated Resources
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSInternetFacingLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Internet Facing Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ECSInternetFacingLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Type: application
+      SecurityGroups:
+        - !Ref ECSInternetFacingLoadBalancerSecurityGroup
+
+  ECSInternetFacingLoadBalancerDefaultListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref nginxTargetGroup
+      LoadBalancerArn: !Ref ECSInternetFacingLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  nginxTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref VPC
+
+  nginxTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: nginx ELB Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ECSInternetFacingLoadBalancerSecurityGroup
+      VpcId: !Ref VPC
+
+  nginxTaskLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: nginx-task
+      RetentionInDays: 1
+
+  nginxTaskExecutionIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+  nginxTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Essential: true
+          Image: nginx
+          LogConfiguration:
+            LogDriver: awsfirelens
+            Options:
+              # specify Name: cloudwatch
+              # if you want logs sent to cloudwatch logs
+              Name: cloudwatch
+              region: !Sub ${AWS::Region}
+              # this can be any name, used below as a test
+              log_group_name: firelens-testing-fluent-bit
+              auto_create_group: true
+              # this can be any prefix, used below as a test
+              log_stream_prefix: from-fluent-bit
+          MemoryReservation: 100
+          Name: nginx
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: tcp
+      # ContainerDefinition for Firelens
+        - Essential: true
+          FirelensConfiguration:
+            Type: fluentbit
+          Image: 906394416424.dkr.ecr.us-west-2.amazonaws.com/aws-for-fluent-bit:latest
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              # Firelens uses Log Group resource
+              awslogs-group: !Ref nginxTaskLogGroup
+              awslogs-region: !Sub ${AWS::Region}
+              awslogs-create-group: true
+              awslogs-stream-prefix: firelens
+          MemoryReservation: 50
+          Name: log_router
+      # the Cpu property is required if using the Fargate launch type
+      Cpu: 256
+      # an ExecutionRoleArn is required if a ContainerDefinition contains a LogConfiguration
+      # that utilizes LogDriver: awslogs
+      ExecutionRoleArn: !Ref nginxTaskExecutionIAMRole
+      Family: nginx
+      # the Memory property is required if using the Fargate launch type
+      Memory: 512
+      # NetworkMode: awsvpc is required if using the Fargate launch type      
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      # nginxTaskExecutionIAMRole also has an attached managed policy
+      # for cloudwatch logs
+      TaskRoleArn: !Ref nginxTaskExecutionIAMRole
+
+  nginxService:
+    Type: AWS::ECS::Service
+    DependsOn: ECSInternetFacingLoadBalancerDefaultListener
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      LoadBalancers: 
+        - ContainerName: nginx
+          ContainerPort: 80
+          TargetGroupArn: !Ref nginxTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref nginxTaskSecurityGroup
+          Subnets:
+            - !Ref PublicSubnet01
+            - !Ref PublicSubnet02
+      PlatformVersion: LATEST
+      # Role: String
+      # ServiceName: nginx
+      TaskDefinition: !Ref nginxTaskDefinition
+
+Outputs: {}
