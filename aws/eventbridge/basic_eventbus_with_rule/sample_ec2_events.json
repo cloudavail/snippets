@@ -1,0 +1,14 @@
+[
+  {
+    "Source": "com.mycompany.myapp",
+    "Detail": "{ \"key1\": \"value1\", \"key2\": \"value2\" }",
+    "EventBusName": "basic-eventbus-with-rule",
+    "DetailType": "myDetailType"
+  },
+  {
+    "Source": "com.mycompany.myapp",
+    "Detail": "{ \"key1\": \"value3\", \"key2\": \"value4\" }",
+    "EventBusName": "basic-eventbus-with-rule",
+    "DetailType": "myDetailType"
+   }
+]

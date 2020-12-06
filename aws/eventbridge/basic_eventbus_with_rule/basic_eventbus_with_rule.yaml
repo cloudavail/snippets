@@ -1,0 +1,34 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Mappings: {}
+
+Resources:
+
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties: 
+      Name: !Sub ${AWS::StackName}
+
+  EventBusTestRule:
+    Type: AWS::Events::Rule
+    Properties: 
+      EventBusName: !Ref EventBus
+      EventPattern:
+        # the event pattern below will match any events that have the "Source"
+        # com.mycompany.myapp
+        # pay attention to the case of "source"
+        source:
+          - com.mycompany.myapp
+      Targets: 
+        - Arn: !GetAtt EventBusTestRuleLogGroup.Arn
+          Id: EventBusTestRuleLogGroup
+
+  EventBusTestRuleLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/events/${AWS::StackName}
+      RetentionInDays: 1
+
+Outputs: {}
