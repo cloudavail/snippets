@@ -1,0 +1,14 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Mappings: {}
+
+Resources:
+
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties: 
+      Name: !Sub ${AWS::StackName}
+
+Outputs: {}
