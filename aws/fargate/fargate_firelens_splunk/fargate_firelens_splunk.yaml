@@ -160,7 +160,8 @@ Resources:
             LogDriver: awsfirelens
             Options:
               Name: splunk
-              splunk_token: 3e0703a4-1b41-4505-9093-6fcd0d5fcdda
+              # Token kept in-house
+              splunk_token: $Splunk_Token
               Host: input-prd-p-27qdqp6x3ktt.cloud.splunk.com
               Port: 8088
               # An ID is required for Splunk
