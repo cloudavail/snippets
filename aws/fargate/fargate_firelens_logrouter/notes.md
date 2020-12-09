@@ -5,5 +5,7 @@
 `docker run -it fluent/fluentd /bin/sh`
 
 - Run command in docker container
-`echo '{"message":"testing the SSL forwarding"}' | fluent-cat -h $DNS_NLB my_tag`
+`echo '{"message":"testing the SSL forwarding"}' | fluent-cat -h Farga-LogRo-1JVNOS8FCVQOI-cc7d05b1f935578d.elb.us-west-2.amazonaws.com my_tag`
 where -h is the DNS Name of the Load Balancer
+
+- Check CloudWatch logs with log group name "log-router"
