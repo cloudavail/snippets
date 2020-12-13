@@ -24,6 +24,7 @@ curl "https://logs.logdna.com/logs/ingest?hostname=EXAMPLE_HOST&mac=C0:FF:EE:C0:
      }
    ] 
 }'
+
 ```
 
 # Reference
