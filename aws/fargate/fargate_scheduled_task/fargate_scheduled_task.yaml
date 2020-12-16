@@ -1,0 +1,164 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ScheduledTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ScheduledTask Security Group
+      VpcId: !Ref VPC
+
+  ScheduledTaskLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # LogGroupName is not required
+      LogGroupName: scheduledtask-task
+      RetentionInDays: 1
+
+  ScheduledTaskExecutionIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                # I had previously assumed this was "ecs.amazonaws.com"
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ScheduledTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - echo
+            - Testing
+          Essential: true
+          Image: ubuntu:latest
+          # unsure if LogConfiguration: awslogs is required for fargate
+          # however, awslogs is the only available logdriver option
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ScheduledTaskLogGroup
+              awslogs-region: !Ref AWS::Region
+              # if awslogs-stream-prefix is not set the following error is thrown:
+              # Fargate requires log configuration options to include awslogs-stream-prefix to support log driver awslogs
+              awslogs-stream-prefix: ScheduledTask
+          Name: ScheduledTask
+      # the Cpu property is required if using the Fargate launch type
+      Cpu: 256
+      # an ExecutionRoleArn is required if a ContainerDefinition contains a LogConfiguration
+      # that utilizes LogDriver: awslogs
+      ExecutionRoleArn: !Ref ScheduledTaskExecutionIAMRole
+      Family: ScheduledTask
+      # the Memory property is required if using the Fargate launch type
+      Memory: 512
+      # NetworkMode: awsvpc is required if using the Fargate launch type      
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+
+  ScheduledTaskRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(* * * * ? *)
+      # ScheduleExpression: cron(* * * * ? *) # Daily at Night
+      State: ENABLED
+      Targets:
+      - Id: ScheduledTask-Fargate-Task
+        RoleArn: arn:aws:iam::xxxxxxxxxxxx:role/test-cj
+        EcsParameters:
+          TaskDefinitionArn: !Ref ScheduledTaskDefinition
+          TaskCount: 1
+          LaunchType: FARGATE
+          PlatformVersion: LATEST
+          NetworkConfiguration:
+            AwsVpcConfiguration:
+              AssignPublicIp: ENABLED
+              SecurityGroups:
+                - !Ref ScheduledTaskSecurityGroup
+              Subnets:
+                - !Ref PublicSubnet01
+                - !Ref PublicSubnet02
+        Arn: !GetAtt ECSCluster.Arn
+
+Outputs: {}
