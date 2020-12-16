@@ -1,9 +1,11 @@
 .DS_Store
 .gradle
+.terraform
 .vagrant
 *.pyc
 node_modules/
 terraform.tfstate
 terraform.tfstate.backup
+terraform.tfvars
 ubuntu-xenial-16.04-cloudimg-console.log
 ubuntu-bionic-18.04-cloudimg-console.log
