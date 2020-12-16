@@ -1,0 +1,11 @@
+{
+	"name": "nodejs_mediaconvert_createjob",
+	"version": "1.0.0",
+	"description": "nodejs mediaconvert createjob",
+	"main": "nodejs_mediaconvert_createjob.js",
+	"dependencies": {
+		"aws-sdk": "^2.665.0"
+	},
+	"author": "",
+	"license": "ISC"
+}
