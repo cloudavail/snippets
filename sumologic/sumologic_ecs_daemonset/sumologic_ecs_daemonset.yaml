@@ -1,0 +1,268 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for an ECS Cluster and Associated Resources.
+
+Parameters:
+
+  ContainerInstanceImageId:
+    Description: Container Instance Image Id
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  ContainerInstanceInstanceType:
+    Description: Container Instance Instance Type
+    Type: String
+    Default: t3.micro
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - InternetGateway
+      - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  NginxELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      SecurityGroups:
+        - !Ref NginxELBSecurityGroup
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: 3
+        UnhealthyThreshold: 5
+        Interval: 30
+        Timeout: 5
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+      CrossZone: true
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 60
+
+  NginxELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: nginx ELB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ContainerInstanceECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ContainerInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Container Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref NginxELBSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  ContainerInstanceInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ContainerInstanceECSRole
+
+  ContainerInstanceAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      MinSize: 2
+      MaxSize: 2
+      LaunchConfigurationName: !Ref ContainerInstanceLaunchConfig
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+          PropagateAtLaunch: true
+
+  ContainerInstanceLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref ContainerInstanceInstanceProfile
+      ImageId: !Ref ContainerInstanceImageId
+      InstanceType: !Ref ContainerInstanceInstanceType
+      KeyName: test-sumologic
+      SecurityGroups:
+        - !Ref ContainerInstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+
+  NginxTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: nginx
+          # image to use for a given container
+          # can be repository-url/image:tag
+          Image: nginx
+          Cpu: 1024
+          # Note: if the container attempts to exceed the allowed memory the container is terminated
+          Memory: 512
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+          Essential: true
+
+  NginxServiceDefinition:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LoadBalancers:
+        - ContainerName: nginx
+          ContainerPort: 80
+          LoadBalancerName: !Ref NginxELB
+      # Role is required to allow the service to make calls to a given ELB
+      Role: !Ref ECSServiceIAMRole
+      TaskDefinition: !Ref NginxTaskDefinition
+
+  sumologicforwarderTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sumologic-forwarder
+      ContainerDefinitions:
+        - Image: !Sub sumologic/collector:latest-file
+          Environment:
+            - Name: SUMO_ACCESS_ID
+              Value:
+            - Name: SUMO_ACCESS_KEY
+              Value:
+            - Name: SUMO_COLLECTOR_HOSTNAME
+              Value:
+          MemoryReservation: 128
+          Mountpoints: 
+            - SourceVolume: var_log_ecs
+              ContainerPath: /tmp/clogs
+          Name: sumologic-forwarder
+      RequiresCompatibilities:
+        - EC2
+      Volumes:
+        - Host:
+            SourcePath: /var/log/ecs
+          Name: var_log_ecs
+
+  sumologicforwarderService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      SchedulingStrategy: DAEMON
+      # ServiceName: sumologic-forwarder-daemon
+      TaskDefinition: !Ref sumologicforwarderTaskDefinition
+
+Outputs:
+
+  NginxELBDNSName:
+    Description: The DNSName of the nginx ELB
+    Value: !GetAtt NginxELB.DNSName
