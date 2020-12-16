@@ -1,0 +1,128 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for creating a PyKaldi Build
+
+Parameters:
+
+  PyKaldiBuildServerImageId:
+    Description: PyKaldi Build Server ImageId
+    Type: String
+    Default:  ami-0e23ea41be77feacd
+
+  PyKaldiBuildServerInstanceType:
+    Description: PyKaldi Build Server Instance Type
+    Type: String
+    Default: c5.9xlarge
+
+  PyKaldiBuildServerKeyName:
+    Description: container Instance Instance Type
+    Type: String
+    Default: pykaldibuildserver
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - InternetGateway
+      - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  PyKaldiBuildServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: container Instance Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+
+  PyKaldiBuildServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      LaunchTemplate:
+        LaunchTemplateId: !Ref PyKaldiBuildServerLaunchTemplate
+        Version: !GetAtt PyKaldiBuildServerLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+
+  PyKaldiBuildServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: true
+              VolumeSize: 600
+              VolumeType: gp2
+        ImageId: !Ref PyKaldiBuildServerImageId
+        InstanceType: !Ref PyKaldiBuildServerInstanceType
+        KeyName: !Ref PyKaldiBuildServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt PyKaldiBuildServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            apt update
+            apt -y install byobu docker.io git
+            cd /root/
+            git clone https://github.com/pykaldi/pykaldi.git
+            cd pykaldi/docker
+            # docker build --tag pykaldi/pykaldi -f Dockerfile .. --memory 64GB --cpu-shares 32
+
+Outputs: {}
