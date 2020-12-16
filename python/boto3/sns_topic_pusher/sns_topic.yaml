@@ -1,0 +1,23 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Create an SNS Topic
+
+Parameters:
+
+  SNSTopicEmailEndpoint:
+    Type: String
+    Default: colin@cloudavail.com
+
+Resources:
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      Subscription: 
+        - Endpoint: !Ref SNSTopicEmailEndpoint
+          Protocol: email-json
+      TopicName: cloudavail-test-sns-topic
+
+Outputs: {}
