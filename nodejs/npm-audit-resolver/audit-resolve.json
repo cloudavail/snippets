@@ -1,0 +1,46 @@
+{
+  "decisions": {
+    "3|express>connect": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "8|express": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "28|express>connect>qs": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "28|express>qs": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "29|express>connect>qs": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "29|express>qs": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "535|express>connect>mime": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "535|express>mime": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "1469|express>connect>qs": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    },
+    "1469|express>qs": {
+      "decision": "ignore",
+      "madeAt": 1588825437030
+    }
+  },
+  "rules": {},
+  "version": 1
+}
