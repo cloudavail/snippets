@@ -62,8 +62,16 @@ Resources:
       GroupDescription: MSK Cluster Security Group
       SecurityGroupIngress:
         - IpProtocol: tcp
+          FromPort: 2181
+          ToPort: 2181
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: tcp
           FromPort: 9902
           ToPort: 9902
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: tcp
+          FromPort: 9904
+          ToPort: 9904
           CidrIp: 10.0.0.0/24
       VpcId: !Ref VPC
 
