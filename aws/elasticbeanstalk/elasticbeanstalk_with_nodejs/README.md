@@ -8,16 +8,16 @@ To create a basic Elastic Beanstalk stack in CloudFormation that utilizes CPU Ut
 
 # Validate Stack
 
-`aws cloudformation validate-template --template-body file://elasticbeanstalk_with_application_load_balancer.yaml`
+`aws cloudformation validate-template --template-body file://elasticbeanstalk_with_nodejs.yaml`
 
 # Create a EBwithApplicationLoadBalancer Stack
 
-`aws cloudformation create-stack --stack-name EBwithApplicationLoadBalancer --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_application_load_balancer.yaml`
+`aws cloudformation create-stack --stack-name EBwithNodeJs --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_nodejs.yaml`
 
 # Update a EBwithApplicationLoadBalancer Stack
 
-`aws cloudformation update-stack --stack-name EBwithApplicationLoadBalancer --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_application_load_balancer.yaml`
+`aws cloudformation update-stack --stack-name EBwithNodeJs --capabilities CAPABILITY_IAM --template-body file://elasticbeanstalk_with_nodejs.yaml`
 
 # Delete a EBwithApplicationLoadBalancer Stack
 
-`aws cloudformation delete-stack --stack-name EBwithApplicationLoadBalancer`
+`aws cloudformation delete-stack --stack-name EBwithNodeJs`
