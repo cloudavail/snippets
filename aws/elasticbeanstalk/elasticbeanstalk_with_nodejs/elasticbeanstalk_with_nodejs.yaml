@@ -95,10 +95,10 @@ Resources:
       OptionSettings:
         - Namespace: aws:autoscaling:asg
           OptionName: MinSize
-          Value: 1
+          Value: 2
         - Namespace: aws:autoscaling:asg
           OptionName: MaxSize
-          Value: 1
+          Value: 2
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: IamInstanceProfile
           Value: !Ref ElasticBeanstalkInstanceProfile
