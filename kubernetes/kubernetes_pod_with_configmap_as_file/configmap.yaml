@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ubuntu-configmap
+  namespace: default
+data:
+  config.yaml: |
+    ENVIRONMENT: development
+    LOG_LEVEL: warn
