@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu
+  labels:
+    app: ubuntu
+spec:
+  containers:
+    - name: ubuntu
+      command: ["/bin/sleep", "3650d"]
+      envFrom:
+        - configMapRef:
+            name: env-variables-configmap
+      image: ubuntu:latest
+      imagePullPolicy: IfNotPresent

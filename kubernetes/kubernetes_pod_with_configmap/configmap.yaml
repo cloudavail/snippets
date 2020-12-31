@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-variables-configmap
+  namespace: default
+data:
+  ENVIRONMENT: development
+  LOG_LEVEL: warn
