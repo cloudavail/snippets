@@ -1,0 +1,399 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for a Fargate Cluster and Associated Resources
+
+Parameters:
+
+  ECSServerImageId:
+    Description: ECS Server Instance Image Id
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  ECSServerInstanceType:
+    Description: ECS Server Instance Type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+
+  ECSServerKeyName:
+    Description: ECS Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ecs-cluster
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/26
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.64/26
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  NATSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  NATSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+
+  NATSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.192/26
+      VpcId: !Ref VPC
+
+  NATSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NATSubnetRouteTable
+      SubnetId: !Ref NATSubnet01
+
+  NATSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NATSubnetRouteTable
+      SubnetId: !Ref NATSubnet02
+
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties: 
+      Domain: vpc
+
+  NATGateway:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties: 
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet01
+
+  NATInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+      RouteTableId: !Ref NATSubnetRouteTable
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  PrivateDNSNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties: 
+      Name: apps.local
+      Vpc: !Ref VPC
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ECSServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSServerIAMRole
+
+  ECSServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt ECSServerInstanceProfile.Arn
+        ImageId: !Ref ECSServerImageId
+        InstanceType: !Ref ECSServerInstanceType
+        KeyName: !Ref ECSServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt ECSServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+
+  ECSServerScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ECSServerLaunchTemplate
+        Version: !GetAtt ECSServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  NginxServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Nginx Service Security Group
+      # SecurityGroupIngress:
+      #   - IpProtocol: tcp
+      #     FromPort: 80
+      #     ToPort: 80
+      #     SourceSecurityGroupId: !Ref ECSInternetFacingLoadBalancerSecurityGroup
+      VpcId: !Ref VPC
+
+  NginxServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: nginx-service
+      RetentionInDays: 1
+
+  NginxTaskIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSAppMeshEnvoyAccess
+
+  NginxTaskExecutionIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: aws-appmesh-envoy-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !Sub arn:aws:ecr:${AWS::Region}:840364872350:repository/aws-appmesh-envoy
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+
+  NginxTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        # the variables below in Environment are required
+        - Environment:
+            - name: APPMESH_RESOURCE_ARN
+              value: !Ref NginxServiceVirtualNode
+          Essential: true
+          Image: !Sub 840364872350.dkr.ecr.${AWS::Region}.amazonaws.com/aws-appmesh-envoy:v1.16.1.0-prod
+          Name: envoy
+          # HealthCheck:
+          #   command:
+          #   - CMD-SHELL
+          #   - curl -s http://localhost:9901/server_info | grep state | grep -q LIVE
+          #   interval: 5
+          #   retries: 3
+          #   startPeriod: 10
+          #   timeout: 2
+          User: 1337
+        - # DependsOn:
+          #   - ContainerName: envoy
+          #     Condition: HEALTHY
+          Essential: true
+          Image: nginx
+          Name: nginx-service
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: tcp
+      ExecutionRoleArn: !Ref NginxTaskExecutionIAMRole
+      Family: nginx
+      Memory: 512
+      # NetworkMode: awsvpc is required when using APPMESH proxy
+      # without this, the following error is presented
+      # Invalid request provided: Create TaskDefinition: APPMESH proxy configuration is only supported in networkMode=awsvpc
+      NetworkMode: awsvpc
+      ProxyConfiguration:
+        ContainerName: envoy
+        ProxyConfigurationProperties:
+          - Name: ProxyIngressPort
+            Value: 15000
+          - Name: ProxyEgressPort
+            Value: 15001
+          - Name: AppPorts
+            Value: 80
+          - Name: EgressIgnoredIPs
+            Value: 169.254.170.2,169.254.169.254
+          - Name: EgressIgnoredPorts
+            Value: 22
+          - Name: IgnoredUID
+            Value: 1337
+        Type: APPMESH
+      TaskRoleArn: !Ref NginxTaskIAMRole
+
+  NginxService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      # Role: String
+      # ServiceName: AppMeshService
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref NginxServiceSecurityGroup
+          Subnets:
+            - !Ref NATSubnet01
+            - !Ref NATSubnet02
+      ServiceRegistries:
+        - ContainerName: envoy
+          RegistryArn: !GetAtt NginxServiceServiceRecord.Arn
+      TaskDefinition: !Ref NginxTaskDefinition
+
+  NginxServiceServiceRecord:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: nginx
+      DnsConfig:
+        NamespaceId: !GetAtt PrivateDNSNamespace.Id
+        DnsRecords:
+          - Type: A
+            TTL: 300
+
+  AppMesh:
+    Type: AWS::AppMesh::Mesh
+    Properties: 
+      MeshName: apps
+      #Spec:
+      #  EgressFilter: 
+      #    Type: ALLOW_ALL
+
+  NginxServiceVirtualNode:
+    Type: AWS::AppMesh::VirtualNode
+    Properties: 
+      MeshName: apps
+      Spec:
+        # Backends:
+        #   - VirtualAppMeshService:
+        #       VirtualAppMeshServiceName: !GetAtt AppMeshServiceVirtualAppMeshService.VirtualAppMeshServiceName
+        Listeners:
+          - PortMapping:
+              Port: 80
+              Protocol: http2
+        ServiceDiscovery:
+          AWSCloudMap:
+            NamespaceName: apps.local
+            ServiceName: !GetAtt NginxServiceServiceRecord.Name
+      VirtualNodeName: nginx-virtual-node
+
+  NginxVirtualService:
+    Type: AWS::AppMesh::VirtualService
+    Properties: 
+      MeshName: apps
+      Spec:
+        Provider:
+          VirtualNode:
+            VirtualNodeName: !GetAtt NginxServiceVirtualNode.VirtualNodeName
+      VirtualServiceName: nginx.apps.local
+
+Outputs: {}
