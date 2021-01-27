@@ -49,6 +49,11 @@ Resources:
     Properties:
       VpcId: !Ref VPC
 
+  PrivateInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
   PublicSubnet01:
     Type: AWS::EC2::Subnet
     Properties:
@@ -88,6 +93,18 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
+
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateInternetRouteTable
+      SubnetId: !Ref PrivateSubnet01
+
+  PrivateSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateInternetRouteTable
+      SubnetId: !Ref PrivateSubnet02
 
   ECSServiceIAMRole:
     Type: AWS::IAM::Role
