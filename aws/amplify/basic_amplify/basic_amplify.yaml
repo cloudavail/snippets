@@ -1,0 +1,14 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Basic Amplify
+
+Parameters: {}
+
+Resources:
+
+  BasicApp:
+    Type: AWS::Amplify::App
+    Properties:
+      Name: basic-amplify-app

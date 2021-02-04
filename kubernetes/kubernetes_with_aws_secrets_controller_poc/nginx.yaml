@@ -1,0 +1,35 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::${AWS_ACCOUNT_ID}:role/nginx-secrets-role
+  name: nginx-service-account
+secrets:
+  - name: /cloudavail/eks/test/database
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      annotations:
+        secrets.k8s.aws/sidecarInjectorWebhook: enabled
+        secrets.k8s.aws/secret-arn: arn:aws:secretsmanager:us-west-2:${AWS_ACCOUNT_ID}:secret:/cloudavail/eks/test/database-NJ6zRD
+      labels:
+        app: nginx
+    spec:
+      serviceAccountName: nginx-service-account
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 80

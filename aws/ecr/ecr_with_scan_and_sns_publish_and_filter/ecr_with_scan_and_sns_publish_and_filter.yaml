@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+
+  EventBusTestRuleCritical:
+    Type: AWS::Events::Rule
+    Properties: 
+      EventBusName: default
+      EventPattern:
+        source:
+          - aws.ecr
+        detail-type:
+          - ECR Image Scan
+        detail:
+          finding-severity-counts:
+            CRITICAL:
+              - exists: true
+      Targets: 
+        - Arn: !Ref ScanReportTopic
+          Id: ScanReporting
+  
+  EventBusTestRuleHigh:
+    Type: AWS::Events::Rule
+    Properties: 
+      EventBusName: default
+      EventPattern:
+        source:
+          - aws.ecr
+        detail-type:
+          - ECR Image Scan
+        detail:
+          finding-severity-counts:
+            HIGH:
+            - exists: true
+      Targets: 
+        - Arn: !Ref ScanReportTopic
+          Id: ScanReporting
+
+  ECRTestRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        scanOnPush: true
+
+  ScanReportTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: test@cloudavail.com
+          Protocol: email
+  
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref ScanReportTopic
+      PolicyDocument:
+        Id: !Ref ScanReportTopic
+        Statement:
+        - Effect: Allow
+          Action: sns:Publish
+          Resource: "*"
+          Principal:
+            Service:
+              - events.amazonaws.com
+  

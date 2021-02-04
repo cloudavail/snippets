@@ -1,0 +1,204 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for an EKS Cluster and Associated Resources.
+
+Parameters:
+
+  EKSNodeGroupInstanceType:
+    Type: String
+    Default: t3.medium
+
+  EKSNodeGroupEc2SshKey:
+    Description: EKS Keypair
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: eks
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      # EnableDnsHostnames: true is required, per the document below
+      # https://aws.amazon.com/premiumsupport/knowledge-center/eks-worker-nodes-cluster/
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      # MapPublicIpOnLaunch: true is configured to avoid the following error:
+      # One or more Amazon EC2 Subnets of [subnet-05cf49646b8a55b91, subnet-04f0014a776a305ad]
+      # for node group EKSNodeGroup-r2ER0mRX2Qcv does not automatically assign public IP addresses
+      # to instances launched into it. If you want your instances to be assigned a public IP address,
+      # then you need to enable auto-assign public IP address for the subnet.
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      Tags:
+        - Key: kubernetes.io/cluster/eks-introduction
+          Value: shared
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      # MapPublicIpOnLaunch: true is configured to avoid the following error:
+      # One or more Amazon EC2 Subnets of [subnet-05cf49646b8a55b91, subnet-04f0014a776a305ad]
+      # for node group EKSNodeGroup-r2ER0mRX2Qcv does not automatically assign public IP addresses
+      # to instances launched into it. If you want your instances to be assigned a public IP address,
+      # then you need to enable auto-assign public IP address for the subnet.
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      Tags:
+        - Key: kubernetes.io/cluster/eks-introduction
+          Value: shared
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  # Description of the EKS Service IAM Role
+  # the EKS Service IAM Role is used to allow the AWS EKS Service to manage
+  # AWS resources on your behalf
+  # https://docs.aws.amazon.com/eks/latest/userguide/service_IAM_role.html
+  EKSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      # note that "Name:" is specified because:
+      # the Public Subnets require a Key that includes the name of the EKS Cluster
+      # the reason the Public Subnets require a Key that includes the name of the EKS Cluster
+      # is because the AWS::EKS::Nodegroup requires subnets that have a Key that includes the
+      # name of the EKS Cluster
+      Name: eks-introduction
+      # https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html
+      ResourcesVpcConfig:
+        # SecurityGroupIds are not needed, as EKS versions after 1.14 create their own security groups
+        # https://docs.aws.amazon.com/eks/latest/userguide/sec-group-reqs.html
+        # SecurityGroupIds:
+        SubnetIds:
+          # Specifies subnets that will host resources used in your EKS Cluster
+          # these "resources" include EC2 Instances (nodes) and Load Balancers
+          # best practice is:
+          # to use "Public" subnets for Load Balancers that allow access from the Internet
+          # to use "Private" subnets for EC2 Instances (nodes)
+          - !Ref PublicSubnet01
+          - !Ref PublicSubnet02
+      RoleArn: !GetAtt EKSServiceIAMRole.Arn
+
+  EKSNodeGroupIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        # arn:iam::aws:policy/AmazonEKS_CNI_Policy should be removed per
+        # https://docs.aws.amazon.com/eks/latest/userguide/create-managed-node-group.html
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  EKSNodeGroup:
+      Type: AWS::EKS::Nodegroup
+      Properties:
+        AmiType: AL2_x86_64
+        ClusterName: !Ref EKSCluster
+        InstanceTypes: 
+          - !Ref EKSNodeGroupInstanceType
+        NodeRole: !GetAtt EKSNodeGroupIAMRole.Arn
+        RemoteAccess:
+          Ec2SshKey: !Ref EKSNodeGroupEc2SshKey
+          # with SourceSecurityGroups undefined, ssh will be allowed (by default) to all hosts
+          # SourceSecurityGroups: 
+        ScalingConfig: 
+          DesiredSize: 2
+          MaxSize: 4
+          MinSize: 1
+        Subnets: 
+          - !Ref PublicSubnet01
+          - !Ref PublicSubnet02
+
+  SecretsManagerSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "test-user"}'
+        GenerateStringKey: "password"
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+      Name: /cloudavail/eks/test/database
+
+  AWSSecretsControllerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: aws-secrets-controller-test
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetResourcePolicy
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+              - secretsmanager:ListSecretVersionIds
+            Resource: !Ref SecretsManagerSecret
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetRandomPassword
+              - secretsmanager:ListSecrets
+            Resource: "*"
+
+Outputs: {}
