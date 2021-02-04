@@ -1,0 +1,172 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eks-with-appmesh-egress-namespace
+  labels:
+    mesh: eks-with-appmesh-egress-mesh
+    # TODO: test without gateway: eks-with-appmesh-ingress-gw
+    gateway: eks-with-appmesh-ingress-gw
+    appmesh.k8s.aws/sidecarInjectorWebhook: enabled
+---
+# we must create a "Mesh" resource in order to test a "Mesh" resource
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: Mesh
+metadata:
+  name: eks-with-appmesh-egress-mesh
+spec:
+  namespaceSelector:
+    matchLabels:
+      mesh: eks-with-appmesh-egress-mesh
+---
+# TODO: describe the need for a virtual gateway
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: VirtualGateway
+metadata:
+  name: eks-with-appmesh-ingress-gw
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  namespaceSelector:
+    matchLabels:
+      gateway: eks-with-appmesh-ingress-gw
+  podSelector:
+    matchLabels:
+      app: eks-with-appmesh-ingress-gw
+  # TODO: confirm the listener for the virtualgateway
+  listeners:
+    - portMapping:
+        port: 8088
+        protocol: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eks-with-appmesh-ingress-gw
+  namespace: eks-with-appmesh-egress-namespace
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8088
+      name: http
+  selector:
+    app: eks-with-appmesh-ingress-gw
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eks-with-appmesh-ingress-gw
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eks-with-appmesh-ingress-gw
+  template:
+    metadata:
+      labels:
+        app: eks-with-appmesh-ingress-gw
+    spec:
+      containers:
+        - name: envoy
+          image: public.ecr.aws/appmesh/aws-appmesh-envoy:v1.16.1.0-prod
+          ports:
+            - containerPort: 8088
+---
+# a GatewayRoute is required in order to send traffic to a VirtualService
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: GatewayRoute
+metadata:
+  name: gateway-route-nginx
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  httpRoute:
+    match:
+      prefix: '/nginx'
+    action:
+      target:
+        virtualService:
+          virtualServiceRef:
+            name: nginx-virtual-service
+---
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: VirtualService
+metadata:
+  name: nginx-virtual-service
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  # awsName: nginx-service.eks-with-appmesh-egress.svc.cluster.local
+  awsName: nginx-service.eks-with-appmesh-egress.svc.cluster.local
+  provider:
+    virtualNode:
+      virtualNodeRef:
+        name: nginx-virtual-node
+---
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: VirtualNode
+metadata:
+  name: nginx-virtual-node
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  podSelector:
+    matchLabels:
+      app: nginx
+  listeners:
+    - portMapping:
+        port: 80
+        protocol: http
+      healthCheck:
+        protocol: http
+        path: '/'
+        healthyThreshold: 2
+        unhealthyThreshold: 2
+        timeoutMillis: 2000
+        intervalMillis: 5000
+  serviceDiscovery:
+    dns:
+      # with this particular configuration, the "host" part of the 
+      # name below much must match the name of the nginx service
+      # i.e.
+      # kind: Service
+      # metadata:
+      #   name: nginx-service
+      hostname: nginx-service.eks-with-appmesh-egress-namespace.svc.cluster.local
+---
+# TODO: it is unclear why a "Service" is needed when a VirtualNode
+# has a direct path to pods
+# although the pods do not have a "port"
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: nginx
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: eks-with-appmesh-egress-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 80
