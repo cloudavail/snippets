@@ -1,0 +1,144 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for Running ElasticBeanstalk.
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+  
+  ElasticBeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      # note that if ApplicationName is set and is not unique you
+      # will not able able to run a given stack multiple times
+      ApplicationName: !Ref AWS::StackName
+
+  ElasticBeanstalkIAMRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+
+  ElasticBeanstalkInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref ElasticBeanstalkIAMRole
+
+  ElasticBeanstalkConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      OptionSettings:
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: 1
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: 1
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref ElasticBeanstalkInstanceProfile
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: t3.micro
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: CITY
+          Value: SAN_FRANCISCO
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: STATE
+          Value: CALIFORNIA
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          # Value: !Join turns the individual subnets into a string
+          Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: true
+      SolutionStackName: 64bit Amazon Linux 2 v3.1.5 running PHP 7.4
+  
+  ElasticBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      Description: AWS ElasticBeanstalk Environment
+      # EnvironmentName must be greater than or equal to 4 (you can't use "QA")
+      EnvironmentName: !Sub ${AWS::StackName}
+      # TemplateName: with environments where every element is exactly the same
+      # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
+      TemplateName: !Ref ElasticBeanstalkConfigurationTemplate
+
+
+Outputs: {}
