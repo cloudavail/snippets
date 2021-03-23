@@ -1,0 +1,322 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  Environment:
+    Type: String
+    AllowedValues:
+      - dev
+      - prd
+      - stg
+      - tst
+
+Mappings:
+
+  Environment:
+    # stg:
+    #   EKSClusterVersion: 1.19
+    #   EKSNodeGroupDesiredCapacity: 1
+    #   EKSNodeGroupInstanceTypes:
+    #     - t3.medium
+    #   EKSNodeGroupEc2SshKey: eks-cloudavail
+    #   EKSNodeGroupMaxSize: 1
+    #   EKSNodeGroupMinSize: 1
+    #   VPCSubnets:
+    #     # NAT Subnets
+    #     - subnet-0de82c7b3e6194599
+    #     - subnet-0db02a1ed635e8af0
+    #     - subnet-075fda3fc7f79cb93
+    #     - subnet-0ef0723d4d57ec470
+
+    dev:
+      EKSClusterVersion: 1.19
+      EKSNodeGroupDesiredCapacity: 1
+      EKSNodeGroupInstanceTypes:
+        - t3.medium
+      EKSNodeGroupEc2SshKey: eks-cloudavail
+      EKSNodeGroupMaxSize: 1
+      EKSNodeGroupMinSize: 1
+      VPCSubnets:
+        # NAT Subnets are needed to build EKS Cluster
+        - subnet-0de82c7b3e6194599
+        - subnet-0db02a1ed635e8af0
+        - subnet-075fda3fc7f79cb93
+        - subnet-0ef0723d4d57ec470
+
+    # tst:
+    #   EKSClusterVersion: 1.19
+    #   EKSNodeGroupDesiredCapacity: 2
+    #   EKSNodeGroupInstanceTypes:
+    #     - t3.medium
+    #   EKSNodeGroupEc2SshKey: eks-dev
+    #   EKSNodeGroupMaxSize: 2
+    #   EKSNodeGroupMinSize: 2
+    #   VPCSubnets:
+    #     - subnet-02aae4d20fc3652a6
+    #     - subnet-0c3e6e2478de7c7b8
+    #     - subnet-097ea4e4b2cf3ce7f
+    #     - subnet-0dfc294ca2b1c88e2
+
+Resources:
+
+  # Description of the EKS Service IAM Role
+  # the EKS Service IAM Role is used to allow the AWS EKS Service to manage
+  # AWS resources on your behalf
+  # https://docs.aws.amazon.com/eks/latest/userguide/service_IAM_role.html
+  EKSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      # note that "Name:" is specified because subnets require a Key that includes the name of the EKS Cluster
+      # Key: !Sub kubernetes.io/cluster/eks-${Environment}
+      # Value: shared
+      Name: !Sub eks-${Environment}
+      ResourcesVpcConfig:
+        SubnetIds: !FindInMap [ Environment, !Ref Environment, VPCSubnets ]
+      RoleArn: !GetAtt EKSServiceIAMRole.Arn
+      Version: !FindInMap [ Environment, !Ref Environment, EKSClusterVersion ]
+
+  # Description of the EKS Node IAM Role
+  # the EKS Service IAM Role is used to allow the AWS EKS Node Nodes
+  # to issue equivalent of aws eks describe-* commands
+  EKSNodeGroupIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        # arn:iam::aws:policy/AmazonEKS_CNI_Policy should be removed per
+        # https://docs.aws.amazon.com/eks/latest/userguide/create-managed-node-group.html
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AWSAppMeshEnvoyAccess
+      # RoleName has been assigned to make administration more predictable
+      RoleName: !Sub EKSNodeGroupIAMRole-${Environment}
+
+  EKSNodeGroup:
+      Type: AWS::EKS::Nodegroup
+      Properties:
+        AmiType: AL2_x86_64
+        ClusterName: !Ref EKSCluster
+        InstanceTypes: !FindInMap [ Environment, !Ref Environment, EKSNodeGroupInstanceTypes ]
+        NodeRole: !GetAtt EKSNodeGroupIAMRole.Arn
+        RemoteAccess:
+          Ec2SshKey: !FindInMap [ Environment, !Ref Environment, EKSNodeGroupEc2SshKey ]
+          # with SourceSecurityGroups undefined, ssh will be allowed (by default) to all hosts
+          # SourceSecurityGroups: 
+        ScalingConfig: 
+          DesiredSize: !FindInMap [ Environment, !Ref Environment, EKSNodeGroupDesiredCapacity ]
+          MaxSize: !FindInMap [ Environment, !Ref Environment, EKSNodeGroupMaxSize ]
+          MinSize: !FindInMap [ Environment, !Ref Environment, EKSNodeGroupMaxSize ]
+        Subnets: !FindInMap [ Environment, !Ref Environment, VPCSubnets ]
+        Tags:
+          Name: !Sub eks-${Environment}
+          owner: devops
+          bu: bc
+          dept: devops
+          env: !Ref Environment
+
+  # the EKSAWSLoadBalancerControllerPolicy below comes from
+  # https://github.com/kubernetes-sigs/aws-load-balancer-controller/blob/main/docs/install/iam_policy.json
+  EKSAWSLoadBalancerControllerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      # Description: is an "immutable" description that requires resource replacement
+      # I have elected to leave this out to prevent recreation of resources
+      ManagedPolicyName: !Sub EKSAWSLoadBalancerControllerPolicy-${Environment}
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - iam:CreateServiceLinkedRole
+          - ec2:DescribeAccountAttributes
+          - ec2:DescribeAddresses
+          - ec2:DescribeInternetGateways
+          - ec2:DescribeVpcs
+          - ec2:DescribeSubnets
+          - ec2:DescribeSecurityGroups
+          - ec2:DescribeInstances
+          - ec2:DescribeNetworkInterfaces
+          - ec2:DescribeTags
+          - ec2:GetCoipPoolUsage
+          - ec2:DescribeCoipPools
+          - elasticloadbalancing:DescribeLoadBalancers
+          - elasticloadbalancing:DescribeLoadBalancerAttributes
+          - elasticloadbalancing:DescribeListeners
+          - elasticloadbalancing:DescribeListenerCertificates
+          - elasticloadbalancing:DescribeSSLPolicies
+          - elasticloadbalancing:DescribeRules
+          - elasticloadbalancing:DescribeTargetGroups
+          - elasticloadbalancing:DescribeTargetGroupAttributes
+          - elasticloadbalancing:DescribeTargetHealth
+          - elasticloadbalancing:DescribeTags
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - cognito-idp:DescribeUserPoolClient
+          - acm:ListCertificates
+          - acm:DescribeCertificate
+          - iam:ListServerCertificates
+          - iam:GetServerCertificate
+          - waf-regional:GetWebACL
+          - waf-regional:GetWebACLForResource
+          - waf-regional:AssociateWebACL
+          - waf-regional:DisassociateWebACL
+          - wafv2:GetWebACL
+          - wafv2:GetWebACLForResource
+          - wafv2:AssociateWebACL
+          - wafv2:DisassociateWebACL
+          - shield:GetSubscriptionState
+          - shield:DescribeProtection
+          - shield:CreateProtection
+          - shield:DeleteProtection
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - ec2:AuthorizeSecurityGroupIngress
+          - ec2:RevokeSecurityGroupIngress
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - ec2:CreateSecurityGroup
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - ec2:CreateTags
+          Resource: arn:aws:ec2:*:*:security-group/*
+          Condition:
+            StringEquals:
+              ec2:CreateAction: CreateSecurityGroup
+            'Null':
+              aws:RequestTag/elbv2.k8s.aws/cluster: 'false'
+        - Effect: Allow
+          Action:
+          - ec2:CreateTags
+          - ec2:DeleteTags
+          Resource: arn:aws:ec2:*:*:security-group/*
+          Condition:
+            'Null':
+              aws:RequestTag/elbv2.k8s.aws/cluster: 'true'
+              aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+        - Effect: Allow
+          Action:
+          - ec2:AuthorizeSecurityGroupIngress
+          - ec2:RevokeSecurityGroupIngress
+          - ec2:DeleteSecurityGroup
+          Resource: "*"
+          Condition:
+            'Null':
+              aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+        - Effect: Allow
+          Action:
+          - elasticloadbalancing:CreateLoadBalancer
+          - elasticloadbalancing:CreateTargetGroup
+          Resource: "*"
+          Condition:
+            'Null':
+              aws:RequestTag/elbv2.k8s.aws/cluster: 'false'
+        - Effect: Allow
+          Action:
+          - elasticloadbalancing:CreateListener
+          - elasticloadbalancing:DeleteListener
+          - elasticloadbalancing:CreateRule
+          - elasticloadbalancing:DeleteRule
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - elasticloadbalancing:AddTags
+          - elasticloadbalancing:RemoveTags
+          Resource:
+          - arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
+          - arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*
+          - arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*
+          Condition:
+            'Null':
+              aws:RequestTag/elbv2.k8s.aws/cluster: 'true'
+              aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+        - Effect: Allow
+          Action:
+          - elasticloadbalancing:ModifyLoadBalancerAttributes
+          - elasticloadbalancing:SetIpAddressType
+          - elasticloadbalancing:SetSecurityGroups
+          - elasticloadbalancing:SetSubnets
+          - elasticloadbalancing:DeleteLoadBalancer
+          - elasticloadbalancing:ModifyTargetGroup
+          - elasticloadbalancing:ModifyTargetGroupAttributes
+          - elasticloadbalancing:DeleteTargetGroup
+          Resource: "*"
+          Condition:
+            'Null':
+              aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+        - Effect: Allow
+          Action:
+          - elasticloadbalancing:RegisterTargets
+          - elasticloadbalancing:DeregisterTargets
+          Resource: arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
+        - Effect: Allow
+          Action:
+          - elasticloadbalancing:SetWebAcl
+          - elasticloadbalancing:ModifyListener
+          - elasticloadbalancing:AddListenerCertificates
+          - elasticloadbalancing:RemoveListenerCertificates
+          - elasticloadbalancing:ModifyRule
+          Resource: "*"
+
+  ALBLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALBLoadBalancer Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      # Cloudavail VPC
+      VpcId: !ImportValue VPCwithPublicSubnets-VPCId
+
+  ALBLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBLoadBalancerSecurityGroup
+      Subnets:
+        - subnet-0de82c7b3e6194599
+        - subnet-0db02a1ed635e8af0
+      Type: application
+
+  ALBHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: "Hello World"
+            StatusCode: 200
+      LoadBalancerArn: !Ref ALBLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+Outputs: {}

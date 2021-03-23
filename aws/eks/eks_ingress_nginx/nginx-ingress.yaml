@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: nginx
+  name: deployment-nginx
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx
+    spec:
+      containers:
+      - image: nginx:latest
+        name: nginx
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: nginx
+  name: service-nginx
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: nginx
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  namespace: nginx
+  name: ingress-nginx
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /*
+            backend:
+              serviceName: service-nginx 
+              servicePort: 80
+                
+
