@@ -21,3 +21,7 @@ Credentials when running locally are not accepted via parameters. You can either
 # Running with Credentials
 
 `docker run -p 24224:24224 --env-file ./fluentbit.env --volume "$(pwd)/conf/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf" fluent/fluent-bit:latest`
+
+# Running with only Parameters
+
+`docker run -p 24224:24224 --env-file ./fluentbit.env fluent/fluent-bit:latest /fluent-bit/bin/fluent-bit --input cpu --output s3 --prop bucket=cloudavail-firelens-log --prop region=us-east-1`
