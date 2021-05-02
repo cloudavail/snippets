@@ -23,6 +23,10 @@ Resources:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/24
+      # EnableDnsHostnames: true is required, per the document below
+      # https://aws.amazon.com/premiumsupport/knowledge-center/eks-worker-nodes-cluster/
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -49,7 +53,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 0, !GetAZs "" ]
-      CidrBlock: 10.0.0.0/25
+      CidrBlock: 10.0.0.0/26
       # MapPublicIpOnLaunch: true is configured to avoid the following error:
       # One or more Amazon EC2 Subnets of [subnet-05cf49646b8a55b91, subnet-04f0014a776a305ad]
       # for node group EKSNodeGroup-r2ER0mRX2Qcv does not automatically assign public IP addresses
@@ -65,7 +69,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [ 1, !GetAZs "" ]
-      CidrBlock: 10.0.0.128/25
+      CidrBlock: 10.0.0.64/26
       # MapPublicIpOnLaunch: true is configured to avoid the following error:
       # One or more Amazon EC2 Subnets of [subnet-05cf49646b8a55b91, subnet-04f0014a776a305ad]
       # for node group EKSNodeGroup-r2ER0mRX2Qcv does not automatically assign public IP addresses
@@ -88,6 +92,56 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicInternetRouteTable
       SubnetId: !Ref PublicSubnet02
+
+  NATSubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  NATSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/26
+      VpcId: !Ref VPC
+
+  NATSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.192/26
+      VpcId: !Ref VPC
+
+  NATSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NATSubnetRouteTable
+      SubnetId: !Ref NATSubnet01
+
+  NATSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NATSubnetRouteTable
+      SubnetId: !Ref NATSubnet02
+
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATGateway:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet01
+
+  NATInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+      RouteTableId: !Ref NATSubnetRouteTable
 
   # Description of the EKS Service IAM Role
   # the EKS Service IAM Role is used to allow the AWS EKS Service to manage
@@ -159,7 +213,7 @@ Resources:
           Ec2SshKey: !Ref EKSNodeGroupEc2SshKey
           # with SourceSecurityGroups undefined, ssh will be allowed (by default) to all hosts
           # SourceSecurityGroups: 
-        ScalingConfig: 
+        ScalingConfig:
           DesiredSize: 2
           MaxSize: 4
           MinSize: 1
