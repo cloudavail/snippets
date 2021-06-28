@@ -1,0 +1,24 @@
+digraph eb {
+  prebuild[label="prebuild Hook"]
+  subgraph cluster_eb_customizations {
+  	label="eb_configuration"
+    packages
+    sources
+    files
+    users
+    groups
+    services
+    container_commands
+    packages -> sources
+    sources -> files
+    files -> users
+    users -> groups
+    groups -> services
+    services -> container_commands
+  }
+  predeploy[label="predeploy Hook"]
+  postdeploy[label="postdeploy Hook"]
+  prebuild -> packages
+  container_commands -> predeploy
+  predeploy -> postdeploy
+}
