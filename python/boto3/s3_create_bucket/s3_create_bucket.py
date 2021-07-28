@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # objective:
-# list s3 buckets
+# create s3 bucket
 
 import boto3
 
