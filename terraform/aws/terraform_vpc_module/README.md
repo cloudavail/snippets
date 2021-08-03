@@ -20,11 +20,16 @@ A majority of terraform configurations will be applied as follows. Specific exce
 3. Preview Changes: run `terraform plan` to review the changes that terraform would make.
 4. Execute Changes: run `terraform apply` to have terraform apply these changes.
 
+# Terraform Use 2
+
+A majority of terraform configurations will be applied as follows. Specific exceptions will be noted within the documentation for each module.
+
+1. `cd` into the `infra` directory. For example: `cd infra`.
+2. If this is your first time running terraform for the given environment, run `terraform init` to configure terraform.
+3. Preview Changes: run `terraform plan -out=plan.out` to review the changes that terraform would make AND creates a "plan.out" file.
+4. Execute Changes: run `terraform apply "plan.out"` to have terraform apply these changes from the "plan.out" file.
+
 # Notes
-
-## Issue with CircleCI Orb
-
-The CircleCI Orb supports only particular versions of terraform (version 0.14.11 at present). This constraint can be removed when the Orb properly supports terraform version 1.0.3 (or later). A PR is open for this: [[semver:major] TF versions 0.15.0 and 1.0.0+ support](https://github.com/CircleCI-Public/terraform-orb/pull/46).
 
 ## Issue with VPC FLow Log Group Deletion
 
