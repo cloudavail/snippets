@@ -1,0 +1,253 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  ECSServerImageId:
+    Description: ECS Server Instance Image Id
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  ECSServerInstanceType:
+    Description: ECS Server Instance Type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+
+  ECSServerKeyName:
+    Description: ECS Server Key Name
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ecs-cluster
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  ECSServiceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSServerIAMRole
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  ECSServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt ECSServerInstanceProfile.Arn
+        ImageId: !Ref ECSServerImageId
+        InstanceType: !Ref ECSServerInstanceType
+        KeyName: !Ref ECSServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is suffecient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt ECSServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            cat > /etc/ecs/ecs.config <<EOF
+            ECS_CLUSTER=${ECSCluster}
+            EOF
+
+  ECSServerScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ECSServerLaunchTemplate
+        Version: !GetAtt ECSServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  # TODO: remove one of log groups
+  # AWSECSClusterEventsLogGroup
+  # ECSClusterEventsLogGroup
+  AWSECSClusterEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: /aws/events/ecs
+      RetentionInDays: 7
+
+  ECSClusterEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: /ecs/events
+      RetentionInDays: 7
+
+  ECSClusterEventRules:
+    Type: AWS::Events::Rule
+    Properties: 
+      EventPattern:
+        # we wish to capture all AWS ECS Service events
+        # we will filter on the captured events within Log Groups
+        source:
+          - aws.ecs
+      State: ENABLED
+      Targets:
+        # would prefer to use !Sub ${ECSClusterEventsLogGroup.Arn} to identify the CloudWatch Logs Group
+        # as a target, however the AWS::Logs::LogGroup.Arn function returns
+        # an ARN that ends with :*
+        # this incorrect behavior exists in ticket: https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/206
+        # an alternative exists to use [0, !Split [':*', !GetAtt ECSClusterEventsLogGroup.Arn ]]
+        # we have opted for the (opinion) slightly more readable
+        # arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${ECSClusterEventsLogGroup}
+        - Arn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/events/ecs
+          Id: aws-events-ecs-log-group
+        - Arn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/events
+          Id: ecs-events-log-group
+
+  ECSContainerInstanceStateChangesMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      # if the detail.status field exists and has a value
+      FilterPattern: "{ $.detail.status = \"*\" }"
+      LogGroupName: !Ref AWSECSClusterEventsLogGroup
+      MetricTransformations:
+        - DefaultValue: 0
+          MetricName: statechange
+          MetricNamespace: /ecs
+          MetricValue: 1
+
+  ECSContainerInstanceStateChangesMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      # if the detail.status field exists and has a value
+      FilterPattern: "{ $.detail.status = \"*\" }"
+      LogGroupName: !Ref AWSECSClusterEventsLogGroup
+      MetricTransformations:
+        - DefaultValue: 0
+          MetricName: statechange
+          MetricNamespace: /ecs
+          MetricValue: 1
+
+  # Note that "Dimensions" are not supported within AWS::Logs::MetricFilter
+  # at the present moment although these are available within terraform
+  # https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/419
+  # ECSContainerInstanceStateActiveMetricFilter:
+  #   Type: AWS::Logs::MetricFilter
+  #   Properties:
+  #     # if the detail.status field exists and has a value
+  #     FilterPattern: "{ $.detail.status = \"ACTIVE\" }"
+  #     LogGroupName: !Ref AWSECSClusterEventsLogGroup
+  #     MetricTransformations:
+  #       - DefaultValue: 0
+  #         Dimensions:
+  #           ClusterName: !Ref ECSCluster
+  #         MetricName: ActiveStateChanges
+  #         MetricNamespace: /ecs
+  #         MetricValue: 1
+  # ECSContainerInstanceStateInactiveMetricFilter:
+  #   Type: AWS::Logs::MetricFilter
+  #   Properties:
+  #     # if the detail.status field exists and has a value
+  #     FilterPattern: "{ $.detail.status = \"INACTIVE\" }"
+  #     LogGroupName: !Ref AWSECSClusterEventsLogGroup
+  #     MetricTransformations:
+  #       - DefaultValue: 0
+  #         Dimensions:
+  #           ClusterName: !Ref ECSCluster
+  #         MetricName: InactiveStateChanges
+  #         MetricNamespace: /ecs
+  #         MetricValue: 1
+
+
+Outputs: {}
