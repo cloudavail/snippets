@@ -1,0 +1,111 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for an EC2 Instance running macOS
+
+Parameters:
+
+  macOSImageId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-074f143fc810219ae
+
+  macOSInstanceKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: macos
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  macOSInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: macOS Instance Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  macOSInstanceHost:
+    Type: AWS::EC2::Host
+    Properties: 
+      # AutoPlacement: on
+      AvailabilityZone: !GetAtt PublicSubnet01.AvailabilityZone
+      # HostRecovery: off
+      InstanceType: mac1.metal
+
+  macOSInstance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      HostId: !Ref macOSInstanceHost
+      ImageId: !Ref macOSImageId
+      InstanceType: mac1.metal
+      KeyName: !Ref macOSInstanceKeyName
+      SecurityGroupIds: 
+        - !Ref macOSInstanceSecurityGroup
+      SubnetId: !Ref PublicSubnet01
+      # Tenancy: dedicated
+      Tags:
+        - Key: Name
+          Value: macOSInstance
+
+Outputs: {}
