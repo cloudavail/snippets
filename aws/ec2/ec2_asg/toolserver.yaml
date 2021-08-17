@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: Creates an EC2 Instance to modify Postgres DB and Hydra App
+Description: Creates an EC2 Instance to have a big processing task
 
 Parameters:
   
