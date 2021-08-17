@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Creates an EC2 Instance to modify Postgres DB and Hydra App
+
+Parameters:
+  
+  EC2InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: c5.2xlarge 
+
+  ToolsServerImageId:
+    Description: EC2 instance type
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
+
+  EC2Startup:
+    Description: EC2 Instance Start - Set to 1 when EC2 Instance is needed
+    Type: Number
+    Default: 0
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref VPC
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet
+  
+  EC2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Instance Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress: []
+      VpcId: !Ref VPC
+
+  EC2InstanceLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId: !Ref ToolsServerImageId
+      SecurityGroups:
+        - !Ref EC2InstanceSecurityGroup
+      InstanceType: !Ref EC2InstanceType
+      KeyName: cloudavail-asg
+      LaunchConfigurationName: !Sub ${AWS::StackName}-launch-config
+      SecurityGroups: 
+        - !Ref EC2InstanceSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          # install byobu
+          yum -y get-update
+          amazon-linux-extras install -y epel
+          yum -y install byobu
+
+  EC2InstanceAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: !Ref EC2Startup
+      LaunchConfigurationName: !Ref EC2InstanceLaunchConfig
+      MaxSize: !Ref EC2Startup
+      MinSize: !Ref EC2Startup
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet
+      Tags: 
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-asg
+          PropagateAtLaunch: true
