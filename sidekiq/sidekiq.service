@@ -1,0 +1,48 @@
+# Documentation from here:
+# https://github.com/mperham/sidekiq/blob/master/examples/systemd/sidekiq.service
+[Unit]
+Description=sidekiq
+After=syslog.target network.target
+
+[Service]
+# If version of Sidekiq is < 5.0.0, use Type=simple
+Type=simple
+# Sidekiq takes a while to load
+TimeoutSec=900
+TimeoutStartSec=900
+WatchdogSec=10
+
+# working directory in EB
+WorkingDirectory=/var/app/current
+# If you use rbenv: # Default command for EB
+ExecStart=/bin/bash -lc 'exec /opt/elasticbeanstalk/.rbenv/shims/bundle exec sidekiq -e production'
+# If you use the system's ruby:
+# ExecStart=/usr/local/bin/bundle exec sidekiq -e production
+# If you use rvm in production without gemset and your ruby version is 2.6.5
+# ExecStart=/home/deploy/.rvm/gems/ruby-2.6.5/wrappers/bundle exec sidekiq -e production
+# If you use rvm in production with gemset and your ruby version is 2.6.5
+# ExecStart=/home/deploy/.rvm/gems/ruby-2.6.5@gemset-name/wrappers/bundle exec sidekiq -e production
+# If you use rvm in production with gemset and ruby version/gemset is specified in .ruby-version,
+# .ruby-gemsetor or .rvmrc file in the working directory
+# ExecStart=/home/deploy/.rvm/bin/rvm in /opt/myapp/current do bundle exec sidekiq -e production
+
+# !!! Change this to your deploy user account if you are using this as a system service !!!
+# webapp user runs the command
+User=webapp
+Group=webapp
+# UMask=0002
+
+Environment=MALLOC_ARENA_MAX=2
+
+RestartSec=1
+Restart=on-failure
+
+# output goes to /var/log/syslog (Ubuntu) or /var/log/messages (CentOS)
+StandardOutput=/var/log/messages
+StandardError=/var/log/messages
+
+# This will default to "bundler" if we don't specify it
+SyslogIdentifier=sidekiq
+
+[Install]
+WantedBy=multi-user.target
