@@ -1,15 +1,20 @@
+# Documentation from here:
+# https://github.com/mperham/sidekiq/blob/master/examples/systemd/sidekiq.service
 [Unit]
 Description=sidekiq
 After=syslog.target network.target
 
 [Service]
+# If version of Sidekiq is < 5.0.0, use Type=simple
 Type=simple
+# Sidekiq takes a while to load
 TimeoutSec=900
 TimeoutStartSec=900
 WatchdogSec=10
 
+# working directory in EB
 WorkingDirectory=/var/app/current
-# If you use rbenv:
+# If you use rbenv: # Default command for EB
 ExecStart=/bin/bash -lc 'exec /opt/elasticbeanstalk/.rbenv/shims/bundle exec sidekiq -e production'
 # If you use the system's ruby:
 # ExecStart=/usr/local/bin/bundle exec sidekiq -e production
@@ -22,6 +27,7 @@ ExecStart=/bin/bash -lc 'exec /opt/elasticbeanstalk/.rbenv/shims/bundle exec sid
 # ExecStart=/home/deploy/.rvm/bin/rvm in /opt/myapp/current do bundle exec sidekiq -e production
 
 # !!! Change this to your deploy user account if you are using this as a system service !!!
+# webapp user runs the command
 User=webapp
 Group=webapp
 # UMask=0002
