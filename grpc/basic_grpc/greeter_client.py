@@ -18,8 +18,7 @@ from __future__ import print_function
 import logging
 
 import grpc
-import helloworld_pb2
-import helloworld_pb2_grpc
+from grpc import helloworld_pb2_grpc, helloworld_pb2
 
 
 def run():
