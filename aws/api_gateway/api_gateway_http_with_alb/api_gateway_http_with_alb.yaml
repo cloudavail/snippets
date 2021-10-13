@@ -1,0 +1,159 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: API Gateway
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  HttpApiVpcLinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load Balancer Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  # an AWS::ApiGatewayV2::VpcLink type resource is required for accessing any "Private resources"
+  HttpApiVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: http-api-vpc-link
+      SecurityGroupIds:
+        - !Ref HttpApiVpcLinkSecurityGroup
+      SubnetIds:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  HttpApiGatewayRestApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Body:
+        openapi: 3.0.1
+        info:
+          title: http-api-gateway-with-alb
+          version: 1.0
+        # servers:
+        # - url: "https://88pnpih3s9.execute-api.us-west-2.amazonaws.com/{basePath}"
+        #   variables:
+        #     basePath:
+        #       default: ""
+        paths:
+          /:
+            x-amazon-apigateway-any-method:
+              responses:
+                default:
+                  description: "Default response for ANY /"
+              x-amazon-apigateway-integration:
+                payloadFormatVersion: 1.0
+                connectionId: !Ref HttpApiVpcLink
+                type: http_proxy
+                httpMethod: ANY
+                uri: !Ref LoadBalancerHTTPListener
+                connectionType: VPC_LINK
+        x-amazon-apigateway-importexport-version: 1.0
+
+
+  HttpApiApiGatewayDefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      AutoDeploy: true
+      ApiId:
+        Ref: HttpApiGatewayRestApi
+      StageName: $default
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load Balancer Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Type: application
+
+  LoadBalancerHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: "Hello from CloudAvail!"
+            StatusCode: 200
