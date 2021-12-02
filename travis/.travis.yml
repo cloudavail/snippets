@@ -1,0 +1,13 @@
+sudo: required
+language: python
+services:
+  - docker
+
+script:
+  - docker build -t test .
+
+deploy:
+  provider: script
+  script: bash docker_push.sh
+  on:
+    branch: main
