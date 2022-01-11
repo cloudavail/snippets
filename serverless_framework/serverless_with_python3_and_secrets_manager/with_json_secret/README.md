@@ -1,6 +1,6 @@
 # Overview
 
-This snippet creates an AWS Lambda function (using serverless) that accesses a Secrets Manager **plain text** secret through referencing a
+This snippet creates an AWS Lambda function (using serverless) that accesses a Secrets Manager **JSON object** secret through referencing a
 Parameter Store parameter (during the time of deployment) and uses the value as an Environment Variable during runtime.
 
 # Security Note
