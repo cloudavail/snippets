@@ -12,13 +12,3 @@ functions:
   hello:
     handler: handler.hello
 
-# you can add CloudFormation resource templates here
-resources:
-  Resources:
-    NewResource:
-      Type: AWS::SSM::Parameter
-      Properties:
-        Name: my_api_key
-        Type: String
-        # see https://serverless.com/framework/docs/providers/aws/guide/variables/
-        Value: ${env:MY_API_KEY}
