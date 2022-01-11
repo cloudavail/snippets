@@ -1,0 +1,17 @@
+service: serverless-with-python3-secrets-manager
+
+variablesResolutionMode: 20210326
+provider:
+  name: aws
+  runtime: python3.7
+  region: us-west-2
+  # note that the variable here will be exposed via the AWS Console
+  environment:
+    MY_API_KEY: ${self:custom.SECRETS.my_api_key}
+
+functions:
+  hello:
+    handler: handler.hello
+
+custom:
+  SECRETS: ${ssm:/aws/reference/secretsmanager/snippets/serverless_framework/API_KEY}
