@@ -20,7 +20,7 @@ Resources:
   SourceBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub cloudavail-source-bucket-${Environment}
+      BucketName: !Sub cloudavail-test-bucket-${Environment}
       LoggingConfiguration:
         DestinationBucketName: !Ref TargetBucket
         LogFilePrefix: test-logs
@@ -29,7 +29,7 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: LogDeliveryWrite
-      BucketName: !Sub cloudavail-target-bucket-${Environment}
+      BucketName: !Sub cloudavail-test-bucket-logs-${Environment}
 
   TargetBucketAccessLogPolicy:
     Type: AWS::S3::BucketPolicy
