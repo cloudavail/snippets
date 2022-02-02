@@ -17,12 +17,26 @@ Parameters:
 
 Resources:
 
-  SourceBucketAccessLogPolicy:
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub cloudavail-source-bucket-${Environment}
+      LoggingConfiguration:
+        DestinationBucketName: !Ref TargetBucket
+        LogFilePrefix: test-logs
+
+  TargetBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: LogDeliveryWrite
+      BucketName: !Sub cloudavail-target-bucket-${Environment}
+
+  TargetBucketAccessLogPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn:
-      - SourceBucket
+      - TargetBucket
     Properties:
-      Bucket: !Ref SourceBucket
+      Bucket: !Ref TargetBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -35,7 +49,7 @@ Resources:
             Resource: !Join
               - ''
               - - 'arn:aws:s3:::'
-                - !Ref LogBucket
+                - !Ref TargetBucket
                 - /*
             Condition:
               ArnLike:
@@ -46,19 +60,3 @@ Resources:
                     - /*
               StringEquals:
                 aws:SourceAccount: 187376578462
-
-  SourceBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: Private
-      BucketName: !Sub cloudavail-source-bucket-${Environment}
-      LoggingConfiguration:
-        DestinationBucketName: !Ref LogBucket
-        LogFilePrefix: test-logs
-
-  LogBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: LogDeliveryWrite
-      BucketName: !Sub cloudavail-log-bucket-${Environment}
-      
