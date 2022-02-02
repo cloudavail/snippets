@@ -1,0 +1,64 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for S3 buckets and Server Access Logging
+
+Parameters: 
+
+  Environment:
+    Type: String
+    Description: Environment
+    AllowedValues:
+      - dev
+      - prod
+      - stage
+      - test
+
+Resources:
+
+  SourceBucketAccessLogPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn:
+      - SourceBucket
+    Properties:
+      Bucket: !Ref SourceBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: S3ServerAccessLogsPolicy
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action:
+              - s3:PutObject
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref LogBucket
+                - /*
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Join
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - !Ref SourceBucket
+                    - /*
+              StringEquals:
+                aws:SourceAccount: 187376578462
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: !Sub cloudavail-source-bucket-${Environment}
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucket
+        LogFilePrefix: test-logs
+
+  LogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: LogDeliveryWrite
+      BucketName: !Sub cloudavail-log-bucket-${Environment}
+      
