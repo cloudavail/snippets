@@ -22,6 +22,10 @@ Confirm that the container is successfully running:
 docker ps
 ```
 
+Expected output for a successful run: 
+1. _datadog/agent_ under the **Image** column 
+2. _(healthy)_ under the **Status** column. 
+
 # References
 
 1. DataDog’s [Docker Agent Documentation](https://docs.datadoghq.com/agent/docker)
