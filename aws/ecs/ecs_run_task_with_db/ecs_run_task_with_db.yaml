@@ -234,18 +234,18 @@ Resources:
   
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DependsOn: DBInstance
     Properties:
       ContainerDefinitions:
         - Command:
             - psql
             - --host
-            - pdr08u2fvcyl7r.cqqr62fdusov.us-west-2.rds.amazonaws.com
+            - !GetAtt DBInstance.Endpoint.Address
             - --port
             - 5432
             - --username
             - test
-            - --password
-            - !Ref DBInstanceMasterUserPassword
+            - --password=cloudavail123!
             - --command
             - SELECT * FROM users
           LogConfiguration:

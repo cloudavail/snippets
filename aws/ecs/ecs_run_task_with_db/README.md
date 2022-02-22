@@ -22,25 +22,24 @@ aws cloudformation update-stack --stack-name PostgresRDSInstanceRunTask --capabi
 
 # Notes
 To run a docker image of the running postgres:
-`docker run -it postgres psql --host $host_address --port 5432 --username test password=cloudavail123! --command="SELECT * FROM users`
+`docker run -it postgres psql --host $host --port 5432 --username test password=$db_password`
 - make sure RDS creates
-- create a table in DB
+- login to RDS DB: `psql --host $host_address --port 5432 --username test password=$db_password`
+- create a table in DB with:
 ```
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     url VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description VARCHAR (255),
-        last_update DATE
+    last_update DATE
 );
 ```
 
 # To Test
 Run this command:
-`aws ecs run-task --cluster ecs-run-task --task-definition postgresql:$number`
+`aws ecs run-task --cluster ecs-run-task --task-definition postgresql:$num`
 
 Check awslogs
 - log group: `psql-logs`
 - logs should select the "users" table in cloudwatch
-
-
