@@ -28,7 +28,7 @@ Check awslogs
 - log group: `curl-log`
 
 ## Run aws ecs run-task with --override
-aws ecs run-task --cluster ecs-run-task-test --overrides '{ "containerOverrides": [ { "name": "curl", "command": ["https://cloudavail.com", "-L", "https://espn.com" ] } ] }' --task-definition curl:2
+aws ecs run-task --cluster ecs-run-task-test --overrides '{ "containerOverrides": [ { "name": "curl", "command": ["-L", "https://espn.com" ] } ] }' --task-definition curl:2
 
 - this command overrides curling "https:/cloudavail.com" and instead curls "espn.com"
 
