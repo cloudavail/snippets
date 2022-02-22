@@ -2,27 +2,23 @@
 
 This template will create a Postgres Based RDS Instance that is publicly accessible.
 
-# Validate the Basic RDS Instance Template
+# Validate the ECS Run Task Template
 
 `aws cloudformation validate-template --template-body file://ecs_run_task.yaml`
 
-# Launch the ecs run task Stack
+# Launch the ECS Run Task Stack
 
 ```
 aws cloudformation create-stack --stack-name ECSRunTask --capabilities CAPABILITY_IAM --template-body file://ecs_run_task.yaml
 ```
 
-# Update the Basic RDS Instance Stack
+# Update the ECS Run Task Stack
 
 ```
 aws cloudformation update-stack --stack-name ECSRunTask --capabilities CAPABILITY_IAM  --template-body file://ecs_run_task.yaml
 ```
 
 # Notes
-## Requirements
-- have aws-cli installed
-- cluster already running in ECS
-- task-definition in ECS
 
 ## To Test
 Run this command:
