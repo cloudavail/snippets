@@ -1,0 +1,46 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Basic bucket with versioning and noncurrent version expiration
+
+Mappings:
+
+  VersioningSettings:
+    versioning-status:
+      VersioningStatus: Enabled
+    noncurrent-version:
+      ExpirationStatus: Enabled
+      DeletionDays: 30
+
+Parameters:
+
+  Customer:
+    Type: String
+    Default: cloudavail
+
+  Environment:
+    Type: String
+    Default: test
+    AllowedValues:
+      - test
+      - demo
+      - dev
+      - qa
+      - prod
+
+Resources:
+
+  BucketWithVersioning:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Customer}-${Environment}-bucket
+      LifecycleConfiguration:
+        Rules:
+          - NoncurrentVersionExpiration:
+              NoncurrentDays: !FindInMap: [ VersioningSettings, noncurrent-version, DeletionDays ]
+            Status: !FindInMap: [ VersioningSettings, noncurrent-version, ExpirationStatus ]
+      VersioningConfiguration:
+        Status: !FindInMap: [ VersioningSettings, versioning-status, VersioningStatus ]
+
+Outputs: {}
