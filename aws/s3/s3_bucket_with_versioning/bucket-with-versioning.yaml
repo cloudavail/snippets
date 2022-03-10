@@ -6,12 +6,29 @@ Description: Basic bucket with versioning and noncurrent version expiration
 
 Mappings:
 
-  VersioningSettings:
-    versioning-status:
-      VersioningStatus: Enabled
-    noncurrent-version:
-      ExpirationStatus: Enabled
-      DeletionDays: 30
+  Environment:
+    prod:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 365
+    demo:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 365
+    qa:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 365
+    dev:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 365
+    test:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 365
 
 Parameters:
 
@@ -38,9 +55,9 @@ Resources:
       LifecycleConfiguration:
         Rules:
           - NoncurrentVersionExpiration:
-              NoncurrentDays: !FindInMap: [ VersioningSettings, noncurrent-version, DeletionDays ]
-            Status: !FindInMap: [ VersioningSettings, noncurrent-version, ExpirationStatus ]
+              NoncurrentDays: !FindInMap [ Environment, !Ref Environment, BucketNonCurrentDeletionDays ]
+            Status: !FindInMap [ Environment, !Ref Environment, BucketNonCurrentVersionStatus ]
       VersioningConfiguration:
-        Status: !FindInMap: [ VersioningSettings, versioning-status, VersioningStatus ]
+        Status: !FindInMap [ Environment, !Ref Environment, BucketVersioningStatus ]
 
 Outputs: {}
