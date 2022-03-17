@@ -18,6 +18,8 @@ aws cloudformation update-stack --stack-name ecs-run-task --capabilities CAPABIL
 ```
 
 # Notes
+- At the moment, `--overrides` only overrides the `Command` and `Environment` instruction.
+- [See AWS ecs run-task documentation on overrides](https://docs.aws.amazon.com/cli/latest/reference/ecs/run-task.html)
 
 ## To Test
 Run this command:
