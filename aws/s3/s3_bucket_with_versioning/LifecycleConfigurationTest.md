@@ -28,13 +28,15 @@ aws cloudformation create-stack \
 # Upload an Object and Update it
 
 ## Upload waffles.jpg
+
 ```
-aws s3 cp waffles.jpg s3://$customer-versioning-bucket
+aws s3 cp waffles.jpg s3://$customer-$environment-bucket
 ```
 
 ## Upload waffles.jpg again
+
 ```
-aws s3 cp waffles.jpg s3://$customer-versioning-bucket
+aws s3 cp waffles.jpg s3://$customer-$environment-bucket
 ```
 
 ## Confirm that both versions exist in the bucket
@@ -42,7 +44,13 @@ aws s3 cp waffles.jpg s3://$customer-versioning-bucket
 The following command will list the `Key`, `VersionId`, and `IsLatest` values for the two files that were uploaded:
 
 ```
-aws s3api list-object-versions --bucket $customer-versioning-bucket --query 'Versions[*].[Key,VersionId,IsLatest]' --prefix waffle --output text
+aws s3api list-object-versions --bucket $customer-$environment-bucket --query 'Versions[*].[Key,VersionId,IsLatest]' --prefix waffle --output text
+```
+
+# Disable Versioning
+
+```
+aws s3api put-bucket-versioning --bucket $customer-$environment-bucket --versioning-configuration Status=Suspended
 ```
 
 # Confirm the Noncurrent Version is Destroyed
@@ -50,5 +58,5 @@ aws s3api list-object-versions --bucket $customer-versioning-bucket --query 'Ver
 After 24 hours, the noncurrent version of `waffles.jpg` will be deleted from the bucket. Confirm that this is the case:
 
 ```
-aws s3api list-object-versions --bucket $customer-versioning-bucket --query 'Versions[*].[Key,VersionId,IsLatest]' --prefix waffle --output text
+aws s3api list-object-versions --bucket $customer-$environment-bucket --query 'Versions[*].[Key,VersionId,IsLatest]' --prefix waffle --output text
 ```
