@@ -10,25 +10,23 @@ Mappings:
     prod:
       BucketVersioningStatus: Enabled
       BucketNonCurrentVersionStatus: Enabled
-      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 1
     demo:
       BucketVersioningStatus: Enabled
       BucketNonCurrentVersionStatus: Enabled
-      BucketNonCurrentDeletionDays: 365
-      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 1
     qa:
       BucketVersioningStatus: Enabled
       BucketNonCurrentVersionStatus: Enabled
-      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 1
     dev:
       BucketVersioningStatus: Enabled
       BucketNonCurrentVersionStatus: Enabled
-      BucketNonCurrentDeletionDays: 365
-      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 1
     test:
       BucketVersioningStatus: Enabled
       BucketNonCurrentVersionStatus: Enabled
-      BucketNonCurrentDeletionDays: 365
+      BucketNonCurrentDeletionDays: 1
 
 Parameters:
 
