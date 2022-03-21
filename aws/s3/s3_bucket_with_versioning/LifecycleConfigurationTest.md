@@ -47,12 +47,6 @@ The following command will list the `Key`, `VersionId`, and `IsLatest` values fo
 aws s3api list-object-versions --bucket $customer-$environment-bucket --query 'Versions[*].[Key,VersionId,IsLatest]' --prefix waffle --output text
 ```
 
-# Disable Versioning
-
-```
-aws s3api put-bucket-versioning --bucket $customer-$environment-bucket --versioning-configuration Status=Suspended
-```
-
 # Confirm the Noncurrent Version is Destroyed
 
 After 24 hours, the noncurrent version of `waffles.jpg` will be deleted from the bucket. Confirm that this is the case:
