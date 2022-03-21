@@ -41,11 +41,13 @@ aws s3 cp waffles.jpg s3://$customer-$environment-bucket
 
 ## Confirm that both versions exist in the bucket
 
-The following command will list the `Key`, `VersionId`, and `IsLatest` values for the two files that were uploaded:
-
 ```
 aws s3api list-object-versions --bucket $customer-$environment-bucket --query 'Versions[*].[Key,VersionId,IsLatest]' --prefix waffle --output text
 ```
+
+This command will list the `Key`, `VersionId`, and `IsLatest` values for the two files that were uploaded.
+
+![](output-example.png)
 
 # Confirm the Noncurrent Version is Destroyed
 
