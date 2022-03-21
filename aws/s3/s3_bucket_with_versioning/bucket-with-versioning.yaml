@@ -1,0 +1,61 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Basic bucket with versioning and noncurrent version expiration
+
+Mappings:
+
+  Environment:
+    prod:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 1
+    demo:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 1
+    qa:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 1
+    dev:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 1
+    test:
+      BucketVersioningStatus: Enabled
+      BucketNonCurrentVersionStatus: Enabled
+      BucketNonCurrentDeletionDays: 1
+
+Parameters:
+
+  Customer:
+    Type: String
+    Default: cloudavail
+
+  Environment:
+    Type: String
+    Default: test
+    AllowedValues:
+      - test
+      - demo
+      - dev
+      - qa
+      - prod
+
+Resources:
+
+  BucketWithVersioning:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Customer}-${Environment}-bucket
+      LifecycleConfiguration:
+        Rules:
+          - NoncurrentVersionExpiration:
+              NoncurrentDays: !FindInMap [ Environment, !Ref Environment, BucketNonCurrentDeletionDays ]
+            Status: !FindInMap [ Environment, !Ref Environment, BucketNonCurrentVersionStatus ]
+      VersioningConfiguration:
+        Status: !FindInMap [ Environment, !Ref Environment, BucketVersioningStatus ]
+
+Outputs: {}
