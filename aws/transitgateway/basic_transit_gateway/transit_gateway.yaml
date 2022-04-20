@@ -1,0 +1,324 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+      
+Mappings: {}
+
+Parameters:
+
+  EC2ServerImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  EC2ServerInstanceType:
+    Type: String
+    Default: t3.nano
+
+  EC2ServerKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: transit-gateway
+
+Resources:
+
+  VPCV:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.2.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCVGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPCV
+
+  PublicSubnetsVRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCV
+      Tags:
+        - Key: Name
+          Value: vpc-b-route-table
+
+  VPCVPublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicSubnetsVRouteTable
+
+  VPCVtoVPCARoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.3.0/24
+      RouteTableId: !Ref PublicSubnetsVRouteTable
+      TransitGatewayId: !Ref VPCTransitGateway
+
+  VPCVtoVPCBRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.4.0/24
+      RouteTableId: !Ref PublicSubnetsVRouteTable
+      TransitGatewayId: !Ref VPCTransitGateway
+
+  PublicSubnet01V:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      CidrBlock: 10.0.2.0/25
+      VpcId: !Ref VPCV
+
+  PublicSubnet02V:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      CidrBlock: 10.0.2.128/25
+      VpcId: !Ref VPCV
+
+  PublicSubnet01VRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetsVRouteTable
+      SubnetId: !Ref PublicSubnet01V
+
+  PublicSubnet02VRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicSubnetsVRouteTable
+      SubnetId: !Ref PublicSubnet02V
+
+  VPCA:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.3.0/24
+
+  PrivateSubnetsARouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCA
+      Tags:
+        - Key: Name
+          Value: vpc-a-route-table
+
+  PrivateSubnet01A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      CidrBlock: 10.0.3.0/25
+      VpcId: !Ref VPCA
+
+  PrivateSubnet02A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      CidrBlock: 10.0.3.128/25
+      VpcId: !Ref VPCA
+
+  PrivateSubnet01ARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetsARouteTable
+      SubnetId: !Ref PrivateSubnet01A
+
+  PrivateSubnet02ARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetsARouteTable
+      SubnetId: !Ref PrivateSubnet02A
+
+  InternalAFacingLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ecs-internal-sg-a
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPCA
+
+  InternalAFacingLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Subnets:
+        - !Ref PrivateSubnet01A
+        - !Ref PrivateSubnet02A
+      Type: application
+      SecurityGroups:
+        - !Ref InternalAFacingLoadBalancerSecurityGroup
+
+  InternalAFacingLoadBalancer80Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref InternalAFacingLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: Internal A Facing Load Balancer
+            StatusCode: 200
+
+  VPCB:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.4.0/24
+
+  PrivateSubnetsBRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCB
+      Tags:
+        - Key: Name
+          Value: vpc-b-route-table
+
+  PrivateSubnet01B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '']
+      CidrBlock: 10.0.4.0/25
+      VpcId: !Ref VPCB
+
+  PrivateSubnet02B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '']
+      CidrBlock: 10.0.4.128/25
+      VpcId: !Ref VPCB
+
+  PrivateSubnet01BRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetsBRouteTable
+      SubnetId: !Ref PrivateSubnet01B
+
+  PrivateSubnet02BRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateSubnetsBRouteTable
+      SubnetId: !Ref PrivateSubnet02B
+
+  VPCBtoVPCVRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.2.0/24
+      RouteTableId: !Ref PrivateSubnetsBRouteTable
+      TransitGatewayId: !Ref VPCTransitGateway
+
+  InternalBFacingLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ecs-internal-sg-b
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPCB
+
+  InternalBFacingLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Subnets:
+        - !Ref PrivateSubnet01B
+        - !Ref PrivateSubnet02B
+      Type: application
+      SecurityGroups:
+        - !Ref InternalBFacingLoadBalancerSecurityGroup
+
+  InternalBFacingLoadBalancer80Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref InternalBFacingLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: Internal B Facing Load Balancer
+            StatusCode: 200
+
+  VPCTransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties: 
+      # AutoAcceptSharedAttachments has been enabled, believed to be required to allow automation within CloudFormation
+      AutoAcceptSharedAttachments: enable
+      DnsSupport: enable
+
+  VPCATransitGatewayAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      SubnetIds: 
+        - !Ref PrivateSubnet01A
+        - !Ref PrivateSubnet02A
+      TransitGatewayId: !Ref VPCTransitGateway
+      VpcId: !Ref VPCA
+
+  VPCBTransitGatewayAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      SubnetIds: 
+        - !Ref PrivateSubnet01B
+        - !Ref PrivateSubnet02B
+      TransitGatewayId: !Ref VPCTransitGateway
+      VpcId: !Ref VPCB
+
+  VPCVTransitGatewayAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      SubnetIds: 
+        - !Ref PublicSubnet01V
+        - !Ref PublicSubnet02V
+      TransitGatewayId: !Ref VPCTransitGateway
+      VpcId: !Ref VPCV
+
+  VPCAtoVPCVRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.2.0/24
+      RouteTableId: !Ref PrivateSubnetsARouteTable
+      TransitGatewayId: !Ref VPCTransitGateway
+
+  EC2ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPCV Server Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPCV
+
+  EC2ServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref EC2ServerImageId
+        InstanceType: !Ref EC2ServerInstanceType
+        KeyName: !Ref EC2ServerKeyName
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt EC2ServerSecurityGroup.GroupId ]
+
+  EC2ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 1
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2ServerLaunchTemplate
+        Version: !GetAtt EC2ServerLaunchTemplate.LatestVersionNumber
+      MaxSize: 1
+      MinSize: 1
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01V
+        - !Ref PublicSubnet02V
+
+Outputs: {}
