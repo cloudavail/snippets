@@ -1,0 +1,50 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Resources:
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sqs-notification-bucket
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt IngestQueue.Arn
+
+  IngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt BulkIngestDeadLetterQueue.Arn
+        maxReceiveCount: 5
+      QueueName: !Sub bulk-ingest
+
+  BulkIngestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: bulk-ingest-dlq
+
+  BulkIngestQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - SQS:SendMessage
+            Resource: !GetAtt IngestQueue.Arn
+            Condition:
+              ArnLike:
+                # note that the bucket ARN defined below may need to be created using
+                # a format such as arn:aws:s3:::bucket_name
+                # in order to avoid a circular dependency
+                # this is untested
+                aws:SourceArn: arn:aws:s3:*:*:sqs-notification-bucket
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Queues:
+        - !Ref IngestQueue
