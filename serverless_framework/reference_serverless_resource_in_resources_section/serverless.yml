@@ -1,0 +1,23 @@
+service: reference-serverless-resource-in-resources-section
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - httpApi:
+          method: '*'
+          path: /
+
+resources:
+  Resources:
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Ref HttpApi
+
