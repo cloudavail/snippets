@@ -209,7 +209,7 @@ Resources:
       - NginxListenerRule
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 0
+      DesiredCount: 2
       LaunchType: FARGATE
       LoadBalancers: 
         - ContainerName: nginx
