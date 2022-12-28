@@ -80,7 +80,7 @@ Resources:
   ECSInternetFacingLoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ECS Internet Facing Security Group
+      GroupDescription: ecs-internet-facing-load-balancer-sg
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -99,17 +99,20 @@ Resources:
       SecurityGroups:
         - !Ref ECSInternetFacingLoadBalancerSecurityGroup
 
-  ECSInternetFacingLoadBalancerDefaultListener:
+  ECSInternetFacingLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref nginxTargetGroup
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: "Request Not Routed"
+            StatusCode: 200
       LoadBalancerArn: !Ref ECSInternetFacingLoadBalancer
       Port: 80
       Protocol: HTTP
 
-  nginxTargetGroup:
+  NginxTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Port: 80
@@ -117,10 +120,24 @@ Resources:
       TargetType: ip
       VpcId: !Ref VPC
 
-  nginxTaskSecurityGroup:
+  NginxListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref ECSInternetFacingLoadBalancerListener
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /*
+      Actions:
+        - TargetGroupArn: !Ref NginxTargetGroup
+          Type: forward
+
+  NginxTaskSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: nginx ELB Security Group
+      GroupDescription: Nginx-task-sg
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -128,14 +145,14 @@ Resources:
           SourceSecurityGroupId: !Ref ECSInternetFacingLoadBalancerSecurityGroup
       VpcId: !Ref VPC
 
-  nginxTaskLogGroup:
+  NginxTaskLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       # LogGroupName is not required
       LogGroupName: nginx-task
       RetentionInDays: 1
 
-  nginxTaskIAMRole:
+  NginxExecutionIAMRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -144,29 +161,28 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                # I had previously assumed this was "ecs.amazonaws.com"
                 - ecs-tasks.amazonaws.com
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  nginxTaskDefinition:
+  NginxTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       ContainerDefinitions:
         - Essential: true
-          Image: nginx
-          # unsure if LogConfiguration: awslogs is required for fargate
-          # however, awslogs is the only available logdriver option
+          Image: nginx:latest
+          # a LogConfiguration of _some_ sort is required for use with AWS ECS Fargate
+          # without this, AWS does not have the ability to ship logs for a given container
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref nginxTaskLogGroup
+              awslogs-group: !Ref NginxTaskLogGroup
               awslogs-region: !Ref AWS::Region
               # if awslogs-stream-prefix is not set the following error is thrown:
               # Fargate requires log configuration options to include awslogs-stream-prefix to support log driver awslogs
-              awslogs-stream-prefix: nginx
+              awslogs-stream-prefix: Nginx
           Name: nginx
           PortMappings:
             - ContainerPort: 80
@@ -174,9 +190,8 @@ Resources:
               Protocol: tcp
       # the Cpu property is required if using the Fargate launch type
       Cpu: 256
-      # an ExecutionRoleArn is required if a ContainerDefinition contains a LogConfiguration
-      # that utilizes LogDriver: awslogs
-      ExecutionRoleArn: !Ref nginxTaskIAMRole
+      # an ExecutionRoleArn is required if a ContainerDefinition contains a LogConfiguration that utilizes LogDriver: awslogs
+      ExecutionRoleArn: !Ref NginxExecutionIAMRole
       Family: nginx
       # the Memory property is required if using the Fargate launch type
       Memory: 512
@@ -185,29 +200,34 @@ Resources:
       RequiresCompatibilities:
         - FARGATE
 
-  nginxService:
+  NginxService:
     Type: AWS::ECS::Service
+    # to create an ECS Service you need a "DependsOn" specific services as defined on this page
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-service.html
+    DependsOn:
+      - ECSInternetFacingLoadBalancer
+      - NginxListenerRule
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 2
+      DesiredCount: 0
       LaunchType: FARGATE
       LoadBalancers: 
         - ContainerName: nginx
           ContainerPort: 80
-          TargetGroupArn: !Ref nginxTargetGroup
+          TargetGroupArn: !Ref NginxTargetGroup
       # NetworkConfiguration is required for tasks that use the
       # awsvpc network mode, which is the network mode required by Fargate
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
           SecurityGroups:
-            - !Ref nginxTaskSecurityGroup
+            - !Ref NginxTaskSecurityGroup
           Subnets:
             - !Ref PublicSubnet01
             - !Ref PublicSubnet02
       PlatformVersion: LATEST
       # Role: String
       ServiceName: nginx
-      TaskDefinition: !Ref nginxTaskDefinition
+      TaskDefinition: !Ref NginxTaskDefinition
 
 Outputs: {}
