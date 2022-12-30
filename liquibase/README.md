@@ -45,9 +45,9 @@ Changesets are added to the changelog file.
 
 Once you've added your changesets to the changelog, run the following commands:
 
-`liquibase tag $yourtag` - this creates a snapshot of the database schema that can be used for rollbacks
-`liquibase update` - this validates the changeset
-`liquibase update-sql` - this executes the changeset
+- `liquibase tag $yourtag` - this creates a snapshot of the database schema that can be used for rollbacks
+- `liquibase update` - this validates the changeset
+- `liquibase update-sql` - this executes the changeset
 
 Changes are tracked in a new table in the database, DATABASECHANGELOG. If this table does not already exist, Liquibase will create it. A second table, DATABASECHANGELOGLOCK, is also created to prevent conflicts with other callers to the database.
 
