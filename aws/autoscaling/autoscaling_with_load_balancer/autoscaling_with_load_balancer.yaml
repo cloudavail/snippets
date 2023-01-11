@@ -94,6 +94,7 @@ Resources:
   WebServerELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
+      CrossZone: true
       HealthCheck:
         Target: HTTP:80/index.html
         HealthyThreshold: 2
