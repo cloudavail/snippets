@@ -1,0 +1,196 @@
+---
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+
+  WebServerImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  WebServerInstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+
+  WebServerKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: webserver
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+    - InternetGateway
+    - PublicInternetRouteTable
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+
+  WebServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: webserver-elb-sg
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
+
+  WebServerELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      HealthCheck:
+        Target: HTTP:80/index.html
+        HealthyThreshold: 2
+        UnhealthyThreshold: 5
+        Interval: 10
+        Timeout: 5
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+      LoadBalancerName: webserver-lb
+      SecurityGroups:
+        - !Ref WebServerELBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: webserver-sg
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref WebServerELBSecurityGroup
+      VpcId: !Ref VPC
+
+  WebServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref WebServerImageId
+        InstanceType: !Ref WebServerInstanceType
+        KeyName: !Ref WebServerKeyName
+        NetworkInterfaces:
+          # AssociatePublicIpAddress: true would not be common in production
+          # environments but is sufficient for developing our own understanding
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups: [ !GetAtt WebServerSecurityGroup.GroupId ]
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash -
+              yum update && yum -y install httpd
+              ami_id=$(curl --silent http://169.254.169.254/latest/meta-data/ami-id)
+              instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
+              instance_type=$(curl --silent http://169.254.169.254/latest/meta-data/instance-type)
+              local_ip=$(curl --silent http://169.254.169.254/latest/meta-data/local-ipv4)
+              public_ip=$(curl --silent http://169.254.169.254/latest/meta-data/public-ipv4)
+              aws_region=${AWS::Region}
+              cat > /var/www/html/index.html <<EOF
+              <html>
+              <head>
+              </head>
+              <body>
+              <h1>Server Information</h1>
+              <ul>
+                <li>AMI: $ami_id</li>
+                <li>Instance ID: $instance_id</li>
+                <li>Instance Type: $instance_type</li>
+                <li>Local IP: $local_ip</li>
+                <li>Public IP: $public_ip</li>
+                <li>AWS Region: $aws_region</li>
+              </ul>
+              </body>
+              </html>
+              EOF
+              systemctl restart httpd
+
+  WebServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebServerLaunchTemplate
+        Version: !GetAtt WebServerLaunchTemplate.LatestVersionNumber
+      LoadBalancerNames:
+        - !Ref WebServerELB
+      MaxSize: 2
+      MinSize: 2
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+      Tags:
+        - Key: Name
+          Value: webserver
+          PropagateAtLaunch: true
+
+Outputs: {}
