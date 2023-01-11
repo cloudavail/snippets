@@ -5,9 +5,8 @@ AWSTemplateFormatVersion: 2010-09-09
 Parameters:
 
   ServerImageId:
-    Type: AWS::EC2::Image::Id
-    # https://cloud-images.ubuntu.com/locator/ec2/ 18.04 lts amd64 hvm:ebs-ssd
-    Default: ami-085925f297f89fce1
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
   ServerInstanceType:
     Type: String
@@ -95,7 +94,7 @@ Resources:
         KeyName: !Ref ServerKeyName
         NetworkInterfaces:
           # AssociatePublicIpAddress: true would not be common in production
-          # environments but is suffecient for developing our own understanding
+          # environments but is sufficient for developing our own understanding
           - AssociatePublicIpAddress: true
             DeviceIndex: 0
             Groups: [ !GetAtt ServerSecurityGroup.GroupId ]
@@ -112,3 +111,7 @@ Resources:
       VPCZoneIdentifier:
         - !Ref PublicSubnet01
         - !Ref PublicSubnet02
+      Tags:
+        - Key: Name
+          Value: basic-asg
+          PropagateAtLaunch: true
