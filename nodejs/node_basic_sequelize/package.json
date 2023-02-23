@@ -5,7 +5,7 @@
   "main": "node_basic_sequelize.js",
   "dependencies": {
     "mysql2": "^2.0.0",
-    "sequelize": "^5.21.1"
+    "sequelize": "^6.28.2"
   },
   "devDependencies": {},
   "scripts": {
