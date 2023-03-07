@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+
+  redis:
+    image: redis:latest
+
+  celery:
+    build:
+      context: ./
+      dockerfile: celery/Dockerfile
+    command:
+      - worker
+      - --queues
+      - test01, test02
+    depends_on:
+      - redis
+    entrypoint:
+      - celery
+    environment:
+      CELERY_BROKER_URL: redis://redis/0
+      CELERY_QUEUES: test01, test02
+    links: 
+      - redis
+
+  flower:
+    build:
+      context: ./
+      dockerfile: flower/Dockerfile
+    command:
+      - flower
+    depends_on:
+      - redis
+    entrypoint:
+      - celery
+    environment:
+      CELERY_BROKER_URL: redis://redis/0
+    links: 
+      - redis
+    ports:
+      - 5555:5555
