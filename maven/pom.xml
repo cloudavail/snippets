@@ -1,0 +1,42 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.cloudavail</groupId>
+    <artifactId>hello-world</artifactId>
+    <version>1.0.0</version>
+    <!--
+        adding properties:maven.compiler.target and maven.compiler.source
+        [ERROR] Source option 5 is no longer supported. Use 7 or later.
+        [ERROR] Target option 5 is no longer supported. Use 7 or later.
+    -->
+    <properties>
+        <maven.compiler.target>1.7</maven.compiler.target>
+        <maven.compiler.source>1.7</maven.compiler.source>
+    </properties>
+  
+  <!-- All your other configuration -->
+  <distributionManagement>
+    <repository>
+      <id>maven_java</id> <!-- Must Match the Unique Identifier in settings.xml -->
+      <name>My First Cloud Repo Repository</name>
+      <url>https://cloudavail.mycloudrepo.io/repositories/maven_java</url>
+    </repository>
+  </distributionManagement>
+  <!-- ...  -->
+  <!-- Other Project Configuration (dependencies, etc.)-->
+  <!-- ...  -->
+  <repositories>
+    <repository>
+      <!--
+      The username and password are retrieved by looking for the Repository
+      Id in the $HOME/.m2/settings.xml file.
+      -->
+      <!-- id Must Match the Unique Identifier in settings.xml -->
+      <id>io.cloudrepo</id>
+      <url>https://cloudavail.mycloudrepo.io/repositories/maven_java</url>
+      <releases/>
+    </repository>
+  </repositories>
+</project>
