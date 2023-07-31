@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Name of the cloudformation stack
-stackname="lambda-hello-world"
+stackname="cloud-564-lambda-hello-world"
 # The s3 bucket where the zipped lambda code will be sent.
-s3bucket="rex-lambda-test"
+s3bucket="www.sandbox.cloudavail.com"
 # Path to the cloudformation file.
 templatefile="serverless_function.yaml"
 # Name/Path of the output from 'aws cloudformation package'

@@ -1,16 +1,11 @@
----
-
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
-
 Description: Sample serverless function
-
 Resources:
-
   HelloWorld:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: 'lambda'
+      CodeUri: s3://www.sandbox.cloudavail.com/377f05d011c71efdaf79adff6a887e4e
       FunctionName: HelloWorld
       Handler: hello_world.handler
       Runtime: python3.9
@@ -20,4 +15,3 @@ Resources:
           Properties:
             Path: /hello_world
             Method: post
-
