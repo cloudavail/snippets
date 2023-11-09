@@ -1,0 +1,36 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: CloudFront Distribution with Access Logging and an S3 Bucket for serving content to CloudFront
+
+Parameters: {}
+
+Resources:
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+
+  CloudFrontDistribution:
+    DependsOn: S3Bucket
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          ForwardedValues:
+            QueryString: false
+          TargetOriginId: S3Bucket
+          ViewerProtocolPolicy: allow-all
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        Logging:
+          Bucket: !GetAtt S3Bucket.DomainName
+          IncludeCookies: true
+          Prefix: logs/
+        Origins:
+          - DomainName: !GetAtt S3Bucket.RegionalDomainName
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+            Id: S3Bucket
