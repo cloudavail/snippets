@@ -1,0 +1,169 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudFormation Stack for Running ElasticBeanstalk.
+
+Parameters: 
+
+  certificateSSLCertificateArns:
+    Description: SSL Certificate ARN
+    Type: String
+    Default: 
+
+Mappings: {}
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  PublicInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicInternetRouteTable
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicInternetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: 10.0.0.0/25
+      VpcId: !Ref VPC
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: 10.0.0.128/25
+      VpcId: !Ref VPC
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet01
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicInternetRouteTable
+      SubnetId: !Ref PublicSubnet02
+  
+  ElasticBeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      # note that if ApplicationName is set and is not unique you
+      # will not able able to run a given stack multiple times
+      ApplicationName: !Ref AWS::StackName
+
+  ElasticBeanstalkIAMRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+
+  ElasticBeanstalkInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref ElasticBeanstalkIAMRole
+
+  ElasticBeanstalkConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      OptionSettings:
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: 1
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: 1
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref ElasticBeanstalkInstanceProfile
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: t3.micro
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          # Configure your environment's default process.
+          OptionName: Port
+          Value: 443
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: Protocol
+          Value: HTTPS
+        - Namespace: aws:elbv2:listener:default
+          OptionName: ListenerEnabled
+          Value: false
+        - Namespace: aws:elbv2:listener:default
+          OptionName: Protocol
+          Value: HTTP
+        - Namespace: aws:elbv2:listener:443
+          # Configure additional listeners on an application load balancer or a network load balancer.
+          OptionName: ListenerEnabled
+          Value: true
+        - Namespace: aws:elbv2:listener:443
+          OptionName: Protocol
+          Value: HTTPS
+        - Namespace: aws:elbv2:listener:443
+          OptionName: SSLCertificateArns
+          Value: !Ref certificateSSLCertificateArns
+        - Namespace: aws:elbv2:listener:443
+          OptionName: SSLPolicy
+          Value: ELBSecurityPolicy-2016-08
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          # Value: !Join turns the individual subnets into a string
+          Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02 ] ]
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: true
+      SolutionStackName: 64bit Amazon Linux 2 v3.0.2 running PHP 7.4
+  
+  ElasticBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      Description: AWS ElasticBeanstalk Environment
+      # EnvironmentName must be greater than or equal to 4 (you can't use "QA")
+      EnvironmentName: !Sub ${AWS::StackName}
+      # TemplateName: with environments where every element is exactly the same
+      # you may be able to use a single AWS::ElasticBeanstalk::ConfigurationTemplate
+      TemplateName: !Ref ElasticBeanstalkConfigurationTemplate
+
+
+Outputs: {}
