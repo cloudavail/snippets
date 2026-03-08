@@ -1,0 +1,24 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Imports S3 Bucket that was already created
+
+Mappings: {}
+
+Outputs: {}
+
+Parameters: {}
+
+Resources:
+
+  ImportS3bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    # Properties:  
+    #   BucketEncryption: 
+    #     ServerSideEncryptionConfiguration:
+    #       - ServerSideEncryptionByDefault:
+    #           SSEAlgorithm: AES256
+    #   VersioningConfiguration:
+    #     Status: Enabled
