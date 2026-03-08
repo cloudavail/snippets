@@ -1,0 +1,246 @@
+---
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This stack creates a MediaConvert Job Template and Output Preset
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+
+  MediaConvertPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:ListAllMyBuckets
+            Resource:
+              - !Sub arn:aws:s3:::*
+          - Effect: Allow
+            Action:
+              - execute-api:Invoke
+              - execute-api:ManageConnections
+            Resource:
+              - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*
+        Version: 2012-10-17
+      # PolicyName is required
+      PolicyName: !Sub MediaConvertPolicy
+      Roles: 
+        - !Ref MediaConvertRole
+
+  MediaConvertRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - mediaconvert.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  MediaConvertJobTemplate:
+    Type: AWS::MediaConvert::JobTemplate
+    Properties: 
+      Description: Job Template 
+      Name: JobTemplateTest
+      SettingsJson:
+        {
+          "OutputGroups": [
+            {
+              "Name": "MediaConvert Output",
+              "Outputs": [
+                {
+                  "ContainerSettings": {
+                    "Container": "MP4",
+                    "Mp4Settings": {
+                      "CslgAtom": "INCLUDE",
+                      "CttsVersion": 0,
+                      "FreeSpaceBox": "EXCLUDE",
+                      "MoovPlacement": "PROGRESSIVE_DOWNLOAD"
+                    }
+                  },
+                  "VideoDescription": {
+                    "Width": 1280,
+                    "Height": 720,
+                    "ScalingBehavior": "DEFAULT",
+                    "VideoPreprocessors": {
+                      "ImageInserter": {
+                        "InsertableImages": [
+                          {
+                            "Width": 530,
+                            "Height": 91,
+                            "ImageX": 375,
+                            "ImageY": 315,
+                            "Layer": 1,
+                            "ImageInserterInput": "",
+                            "Opacity": 100
+                          }
+                        ]
+                      }
+                    },
+                    "TimecodeInsertion": "DISABLED",
+                    "AntiAlias": "ENABLED",
+                    "Sharpness": 100,
+                    "CodecSettings": {
+                      "Codec": "H_264",
+                      "H264Settings": {
+                        "InterlaceMode": "PROGRESSIVE",
+                        "NumberReferenceFrames": 3,
+                        "Syntax": "DEFAULT",
+                        "Softness": 0,
+                        "GopClosedCadence": 1,
+                        "GopSize": 90,
+                        "Slices": 1,
+                        "GopBReference": "DISABLED",
+                        "SlowPal": "DISABLED",
+                        "SpatialAdaptiveQuantization": "ENABLED",
+                        "TemporalAdaptiveQuantization": "ENABLED",
+                        "FlickerAdaptiveQuantization": "DISABLED",
+                        "EntropyEncoding": "CAVLC",
+                        "MaxBitrate": 4200000,
+                        "FramerateNumerator": 30000,
+                        "FramerateDenominator": 1001,
+                        "FramerateControl": "SPECIFIED",
+                        "RateControlMode": "QVBR",
+                        "QvbrSettings": {
+                          "QvbrQualityLevel": 7
+                        },
+                        "CodecProfile": "BASELINE",
+                        "Telecine": "NONE",
+                        "MinIInterval": 0,
+                        "AdaptiveQuantization": "HIGH",
+                        "CodecLevel": "LEVEL_3_1",
+                        "FieldEncoding": "PAFF",
+                        "SceneChangeDetect": "ENABLED",
+                        "QualityTuningLevel": "SINGLE_PASS",
+                        "FramerateConversionAlgorithm": "DUPLICATE_DROP",
+                        "UnregisteredSeiTimecode": "DISABLED",
+                        "GopSizeUnits": "FRAMES",
+                        "HrdBufferInitialFillPercentage": 90,
+                        "ParControl": "INITIALIZE_FROM_SOURCE",
+                        "NumberBFramesBetweenReferenceFrames": 0,
+                        "RepeatPps": "DISABLED",
+                        "DynamicSubGop": "STATIC"
+                      }
+                    },
+                    "AfdSignaling": "NONE",
+                    "DropFrameTimecode": "ENABLED",
+                    "RespondToAfd": "NONE",
+                    "ColorMetadata": "INSERT"
+                  },
+                }
+              ],
+              "OutputGroupSettings": {
+                "Type": "FILE_GROUP_SETTINGS",
+                "FileGroupSettings": {
+                  "Destination": "s3://"
+                }
+              }
+            }
+          ],
+          "AdAvailOffset": 0,
+          "Inputs": [
+            {
+              "VideoSelector": {
+                "ColorSpace": "FOLLOW",
+                "Rotate": "DEGREE_0",
+                "AlphaBehavior": "DISCARD"
+              },
+              "FilterEnable": "DISABLE",
+              "PsiControl": "IGNORE_PSI",
+              "FilterStrength": 0,
+              "DeblockFilter": "DISABLED",
+              "DenoiseFilter": "DISABLED",
+              "TimecodeSource": "ZEROBASED"
+            }
+          ]
+}
+
+  MediaConvertPreset:
+    Type: AWS::MediaConvert::Preset
+    Properties: 
+      Description: Preset for Previews
+      Name: MediaConvertPreset
+      SettingsJson: 
+        VideoDescription:
+          Width: 1280
+          ScalingBehavior: DEFAULT
+          Height: 720
+          VideoPreprocessors:
+            ImageInserter:
+              InsertableImages:
+              - Width: 530
+                Height: 91
+                ImageX: 375
+                ImageY: 315
+                Layer: 1
+                # S3 path to image
+                ImageInserterInput: 
+                Opacity: 100
+          TimecodeInsertion: DISABLED
+          Sharpness: 100
+          CodecSettings:
+            Codec: H_264
+            H264Settings:
+              InterlaceMode: PROGRESSIVE
+              ParNumerator: 16
+              NumberReferenceFrames: 3
+              Syntax: DEFAULT
+              Softness: 0
+              FramerateDenominator: 1001
+              GopClosedCadence: 1
+              GopSize: 90
+              Slices: 1
+              GopBReference: DISABLED
+              HrdBufferSize: 4200000 
+              SlowPal: DISABLED
+              ParDenominator: 11
+              SpatialAdaptiveQuantization: ENABLED
+              TemporalAdaptiveQuantization: ENABLED
+              FlickerAdaptiveQuantization: DISABLED
+              EntropyEncoding: CAVLC
+              # Bitrate: 6300000 # comment out if using QVBR
+              MaxBitrate: 4200000 # comment out if using CBR
+              FramerateControl: SPECIFIED
+              RateControlMode: QVBR
+              CodecProfile: BASELINE
+              Telecine: NONE
+              FramerateNumerator: 30000
+              MinIInterval: 0
+              AdaptiveQuantization: MAX
+              CodecLevel: LEVEL_3_1
+              FieldEncoding: PAFF
+              SceneChangeDetect: ENABLED
+              QualityTuningLevel: SINGLE_PASS_HQ
+              HrdBufferInitialFillPercentage: 90
+              FramerateConversionAlgorithm: DUPLICATE_DROP
+              UnregisteredSeiTimecode: DISABLED
+              GopSizeUnits: FRAMES
+              ParControl: INITIALIZE_FROM_SOURCE
+              NumberBFramesBetweenReferenceFrames: 0
+              RepeatPps: DISABLED
+              DynamicSubGop: STATIC
+              QvbrSettings: 
+                QvbrQualityLevel: 7 # comment out if using CBR
+          AfdSignaling: NONE
+          DropFrameTimecode: ENABLED
+          RespondToAfd: NONE
+          ColorMetadata: INSERT
+        ContainerSettings:
+          Container: MP4
+          Mp4Settings:
+            CslgAtom: INCLUDE
+            CttsVersion: 0
+            FreeSpaceBox: EXCLUDE
+            MoovPlacement: PROGRESSIVE_DOWNLOAD
+
+Outputs: {}
