@@ -6,7 +6,7 @@ GEM
     rack (3.0.7)
     redis-client (0.14.1)
       connection_pool
-    sidekiq (7.0.7)
+    sidekiq (7.0.8)
       concurrent-ruby (< 2)
       connection_pool (>= 2.3.0)
       rack (>= 2.2.4)
